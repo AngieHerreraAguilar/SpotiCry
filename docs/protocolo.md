@@ -51,10 +51,29 @@
 
 ```typescript
 // Song
-{ id, title, artist, album, genre, year, duration_secs, file_path?, spotify_preview_url? }
+{ id, title, artist, album, genre, year, duration_secs,
+  file_path?, spotify_preview_url?, cover_url? }
 // Playlist
 { id, name, songs: number[] }
 ```
+
+`file_path` viaja como string (no `PathBuf`) para que `library.json` se lea igual en Mac y Windows. `cover_url` se llena con `track.album.images[0].url` cuando la canción viene de Spotify, o con el frame `APIC` cuando se lee del MP3 local.
+
+## Convenciones del servidor
+
+Tres reglas implícitas que **deben** cumplirse para que el frontend funcione y para que la demo de concurrencia del enunciado salga bien:
+
+### 1. Snapshot inicial automático
+
+Cuando un cliente abre el WebSocket, el servidor le envía `library.snapshot` + `playlist.snapshot` **sin que el cliente los pida**. Evita una ronda inicial y garantiza que el UI tenga datos al renderizar la primera pantalla.
+
+### 2. Broadcast en mutaciones de playlist
+
+Cualquier `playlist.create` / `delete` / `add` / `remove` / `sort` hace que el servidor emita `playlist.snapshot` a **TODOS los clientes conectados**, no solo al que mutó. Esto valida el requisito de "concurrencia compartida" del enunciado y es lo que hace funcionar la demo multi-pestaña que documenta `concurrencia.md`.
+
+### 3. Semántica de `stop`
+
+El cliente envía `stop` cuando **cambia de canción o cierra la app**, NO cuando solo pausa. Pausar es estado local del navegador. Sin esta convención el set "en reproducción" se llena de falsos positivos y el requisito "no borrar canción reproduciéndose" se vuelve impredecible.
 
 ## Ejemplos
 
