@@ -51,6 +51,8 @@ impl Library {
 }
 
 pub fn add_song_from_file(&mut self, path: &Path) -> anyhow::Result<SongId> {
+    use id3::TagLike;
+
     let tag = id3::Tag::read_from_path(path)?;
 
     let song = Song {
@@ -61,8 +63,9 @@ pub fn add_song_from_file(&mut self, path: &Path) -> anyhow::Result<SongId> {
         genre: tag.genre().unwrap_or("Unknown").to_string(),
         year: tag.year().unwrap_or(0) as u16,
         duration_secs: 0,
-        file_path: Some(path.to_path_buf()),
+        file_path: Some(path.to_string_lossy().to_string()), // 🔥 FIX
         spotify_preview_url: None,
+        cover_url: None, // 🔥 NUEVO
     };
 
     Ok(self.add_song(song))
