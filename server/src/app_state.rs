@@ -1,0 +1,61 @@
+// Estado global compartido del servidor.
+// Owner: Persona 1.
+//
+// Este struct conecta TODO el backend:
+//
+// - Library (canciones)
+// - Playlists (módulo funcional)
+// - Playback (estado runtime)
+// - Broadcast (eventos WS)
+//
+// Se comparte entre:
+// - WebSocket (ws.rs)
+// - HTTP streaming (http_stream.rs)
+// - CLI (opcional)
+//
+// IMPORTANTE:
+// - Se usa Arc para compartir entre threads
+// - Se usa Mutex para estructuras mutables
+// - Playback ya es thread-safe internamente
+
+use std::sync::Arc;
+
+use tokio::sync::{RwLock, broadcast};
+
+use crate::{
+    library::Library,
+    playback::Playback,
+    playlists::state::State as Playlists,
+    protocol::ServerEvent,
+};
+
+#[derive(Clone)]
+pub struct AppState {
+    /// Biblioteca de canciones (lecturas concurrentes)
+    pub library: Arc<RwLock<Library>>,
+
+    /// Playlists (estado funcional)
+    pub playlists: Arc<RwLock<Playlists>>,
+
+    /// Estado de reproducción
+    pub playback: Arc<Playback>,
+
+    /// Canal broadcast WS
+    pub broadcast: broadcast::Sender<ServerEvent>,
+}
+
+impl AppState {
+    pub fn new(
+        library: Library,
+        playlists: Playlists,
+        playback: Playback,
+        broadcast: broadcast::Sender<ServerEvent>,
+    ) -> Self {
+        Self {
+            library: Arc::new(RwLock::new(library)),
+            playlists: Arc::new(RwLock::new(playlists)),
+            playback: Arc::new(playback),
+            broadcast,
+        }
+    }
+}
