@@ -830,6 +830,44 @@ input:focus { border-color: var(--accent); }
 }
 .btn-icon:hover { color: var(--text-1); background: var(--accent-soft); }
 
+.playlist-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: 0 var(--space-6);
+}
+.playlist-filter > input[type='text'] {
+  flex: 1;
+  min-width: 200px;
+}
+.playlist-filter > .year-range { display: flex; gap: var(--space-2); }
+.playlist-filter > .year-range input { width: 110px; }
+.playlist-filter > button[type='button']:not(.search-tabs button) {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-2);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.playlist-filter > button[type='button']:not(.search-tabs button):hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.filter-status {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  color: var(--accent-light);
+  padding: 0 var(--space-6);
+  margin: 0;
+}
+
 /* Cuando SongList recibe onRemove, agregamos columna extra */
 .song-row.has-remove { grid-template-columns: 40px 2.5fr 1.5fr 1.5fr 1fr 80px 48px 80px; }
 .song-row .song-remove {
