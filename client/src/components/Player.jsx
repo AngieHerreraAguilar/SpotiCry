@@ -24,28 +24,36 @@ export function Player() {
       <div className="player-info">
         {currentSong ? (
           <>
-            <strong>{currentSong.title}</strong> — {currentSong.artist}
+            <strong>{currentSong.title}</strong>
+            <span>{currentSong.artist}</span>
           </>
         ) : (
           <span className="muted">Sin reproducir</span>
         )}
       </div>
-      <div className="player-controls">
-        <button onClick={() => seekTo(Math.max(0, currentTime - 10))}>« 10s</button>
-        <button onClick={togglePause}>{isPlaying ? '⏸' : '▶'}</button>
-        <button onClick={() => seekTo(currentTime + 10)}>10s »</button>
+      <div className="player-center">
+        <div className="player-controls">
+          <button onClick={() => seekTo(Math.max(0, currentTime - 10))} aria-label="Retroceder 10 segundos">« 10s</button>
+          <button onClick={togglePause} aria-label={isPlaying ? 'Pausar' : 'Reproducir'}>
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button onClick={() => seekTo(currentTime + 10)} aria-label="Adelantar 10 segundos">10s »</button>
+        </div>
+        <div className="player-progress">
+          <span className="player-time">{fmt(currentTime)}</span>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={currentTime}
+            onChange={(e) => seekTo(parseFloat(e.target.value))}
+            aria-label="Posición de reproducción"
+          />
+          <span className="player-time">{fmt(duration)}</span>
+        </div>
       </div>
-      <input
-        type="range"
-        min={0}
-        max={duration || 0}
-        step={0.1}
-        value={currentTime}
-        onChange={(e) => seekTo(parseFloat(e.target.value))}
-      />
-      <span className="player-time">
-        {fmt(currentTime)} / {fmt(duration)}
-      </span>
+      <div className="player-extras" aria-hidden="true" />
     </div>
   );
 }
