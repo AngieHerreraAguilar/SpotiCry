@@ -112,11 +112,11 @@ async fn handle_add(state: &Arc<AppState>, args: &[&str]) {
     let path = args[0];
     let _ = state;
     // TODO(Persona 1): destapar cuando library.rs esté listo
-    //   use std::path::Path;
-    //   match state.library.write().await.add_song_from_file(Path::new(path)) {
-    //       Ok(id) => println!("✓ agregada (id {id}): {path}"),
-    //       Err(e) => eprintln!("✗ error agregando '{path}': {e}"),
-    //   }
+       use std::path::Path;
+       match state.library.write().await.add_song_from_file(Path::new(path)) {
+           Ok(id) => println!("✓ agregada (id {id}): {path}"),
+           Err(e) => eprintln!("✗ error agregando '{path}': {e}"),
+       }
     println!("[TODO] add {path}");
 }
 
@@ -152,10 +152,10 @@ async fn handle_remove(state: &Arc<AppState>, args: &[&str]) {
     };
     let _ = state;
     // TODO(Persona 1): destapar cuando library.rs::remove_song esté listo
-    //   match state.library.write().await.remove_song(id) {
-    //       Ok(()) => println!("✓ eliminada (id {id})"),
-    //       Err(e) => eprintln!("✗ no se pudo eliminar id {id}: {e}"),
-    //   }
+        match state.library.write().await.remove_song(id, &state.playback) {
+           Ok(()) => println!("✓ eliminada (id {id})"),
+           Err(e) => eprintln!("✗ no se pudo eliminar id {id}: {e}"),
+       }
     // Nota: remove_song debe consultar playback::is_playing(id) y fallar con
     //       CANNOT_DELETE_PLAYING si la canción está en reproducción
     //       (requisito explícito del enunciado).
@@ -165,30 +165,30 @@ async fn handle_remove(state: &Arc<AppState>, args: &[&str]) {
 async fn handle_list(state: &Arc<AppState>) {
     let _ = state;
     // TODO(Persona 1): destapar cuando library.rs::list esté listo
-    //   let lib = state.library.read().await;
-    //   let songs = lib.list();
-    //   if songs.is_empty() {
-    //       println!("(biblioteca vacía)");
-    //       return;
-    //   }
-    //   println!("{:<5} {:<32} {:<24} {:<6}", "ID", "TÍTULO", "ARTISTA", "AÑO");
-    //   for s in &songs {
-    //       println!("{:<5} {:<32} {:<24} {:<6}", s.id, s.title, s.artist, s.year);
-    //   }
+       let lib = state.library.read().await;
+       let songs = lib.list();
+       if songs.is_empty() {
+           println!("(biblioteca vacía)");
+           return;
+       }
+       println!("{:<5} {:<32} {:<24} {:<6}", "ID", "TÍTULO", "ARTISTA", "AÑO");
+       for s in &songs {
+           println!("{:<5} {:<32} {:<24} {:<6}", s.id, s.title, s.artist, s.year);
+       }
     println!("[TODO] list");
 }
 
 async fn handle_playlists(state: &Arc<AppState>) {
     let _ = state;
     // TODO(Persona 1): destapar cuando playlists/state.rs esté listo
-    //   let st = state.playlists.read().await;
-    //   if st.playlists.is_empty() {
-    //       println!("(no hay playlists)");
-    //       return;
-    //   }
-    //   for pl in st.playlists.values() {
-    //       println!("[{}] {} — {} canción(es)", pl.id, pl.name, pl.songs.len());
-    //   }
+       let st = state.playlists.read().await;
+       if st.playlists.is_empty() {
+           println!("(no hay playlists)");
+           return;
+       }
+       for pl in st.playlists.values() {
+           println!("[{}] {} — {} canción(es)", pl.id, pl.name, pl.songs.len());
+       }
     println!("[TODO] playlists");
 }
 

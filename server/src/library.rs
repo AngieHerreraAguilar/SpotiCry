@@ -2,7 +2,7 @@ use crate::domain::{Song, SongId};
 use crate::playback::Playback;
 
 use std::collections::HashMap;
-
+#[derive(Clone)]
 pub struct Library {
     songs: HashMap<SongId, Song>,
     by_genre: HashMap<String, Vec<SongId>>,
@@ -61,27 +61,51 @@ impl Library {
 
         id
     }
+    pub fn add_song_from_file(&mut self, path: &std::path::Path) -> anyhow::Result<SongId> {
+        
+    use id3::Tag;
+    use id3::TagLike;
 
-    pub fn remove_song(&mut self, id: SongId, playback: &Playback) -> anyhow::Result<()> {
-        if playback.is_playing(&id) {
-            anyhow::bail!("cannot delete playing song");
-        }
+    let tag = Tag::read_from_path(path)?;
 
-        let song = match self.songs.remove(&id) {
-            Some(s) => s,
-            None => return Ok(()),
-        };
+    let song = Song {
+        id: 0,
+        title: tag.title().unwrap_or("Unknown").to_string(),
+        artist: tag.artist().unwrap_or("Unknown").to_string(),
+        album: tag.album().unwrap_or("Unknown").to_string(),
+        genre: tag.genre().unwrap_or("Unknown").to_string(),
+        year: tag.year().unwrap_or(0) as u16,
+        duration_secs: 0,
+        file_path: Some(path.to_string_lossy().to_string()),
+        spotify_preview_url: None,
+        cover_url: None, // ⚠️ solo si existe en Song
+    };
 
-        if let Some(ids) = self.by_genre.get_mut(&song.genre) {
-            ids.retain(|x| *x != id);
+    Ok(self.add_song(song))
+}
 
-            if ids.is_empty() {
-                self.by_genre.remove(&song.genre);
-            }
-        }
 
-        Ok(())
+pub fn remove_song(&mut self, id: SongId, playback: &Playback) -> anyhow::Result<()> {
+    // 🔴 REGLA CRÍTICA DEL ENUNCIADO
+    if playback.is_playing(&id) {
+        anyhow::bail!("CANNOT_DELETE_PLAYING");
     }
+
+    let song = match self.songs.remove(&id) {
+        Some(s) => s,
+        None => return Ok(()),
+    };
+
+    if let Some(ids) = self.by_genre.get_mut(&song.genre) {
+        ids.retain(|x| *x != id);
+
+        if ids.is_empty() {
+            self.by_genre.remove(&song.genre);
+        }
+    }
+
+    Ok(())
+}
 
     pub fn search_by_title(&self, q: &str) -> Vec<Song> {
         let q = q.to_lowercase();
