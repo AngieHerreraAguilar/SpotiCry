@@ -147,3 +147,69 @@ pub fn remove_song(&mut self, id: SongId, playback: &Playback) -> anyhow::Result
         (self.songs.values().cloned().collect(), self.next_id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_song() -> Song {
+        Song {
+            id: 0,
+            title: "Test".into(),
+            artist: "Tester".into(),
+            album: "Album".into(),
+            genre: "Rock".into(),
+            year: 2020,
+            duration_secs: 180,
+            file_path: None,
+            spotify_preview_url: None,
+            cover_url: None,
+        }
+    }
+
+    /// Requisito explícito del enunciado: no se puede eliminar una canción
+    /// que está sonando. La library debe consultar `Playback::is_playing`
+    /// y devolver el error `CANNOT_DELETE_PLAYING`.
+    #[test]
+    fn cannot_delete_playing_song() {
+        let mut lib = Library::new(0);
+        let id = lib.add_song(sample_song());
+
+        let playback = Playback::new();
+        playback.mark_playing(&id);
+
+        let result = lib.remove_song(id, &playback);
+        assert!(result.is_err(), "remove_song debe fallar mientras la canción está sonando");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "CANNOT_DELETE_PLAYING",
+            "el error debe ser exactamente el código del enunciado"
+        );
+
+        assert!(lib.get(id).is_some(), "la canción debe seguir en la biblioteca");
+    }
+
+    #[test]
+    fn can_delete_song_when_not_playing() {
+        let mut lib = Library::new(0);
+        let id = lib.add_song(sample_song());
+
+        let playback = Playback::new();
+        // sin marcarla como playing
+
+        assert!(lib.remove_song(id, &playback).is_ok());
+        assert!(lib.get(id).is_none(), "la canción debió ser eliminada");
+    }
+
+    #[test]
+    fn can_delete_after_stop() {
+        let mut lib = Library::new(0);
+        let id = lib.add_song(sample_song());
+
+        let playback = Playback::new();
+        playback.mark_playing(&id);
+        playback.mark_stopped(&id);
+
+        assert!(lib.remove_song(id, &playback).is_ok());
+    }
+}

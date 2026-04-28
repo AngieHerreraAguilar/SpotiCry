@@ -16,4 +16,16 @@ impl State {
             next_id: 1,
         }
     }
+
+    pub fn to_snapshot(&self) -> (Vec<Playlist>, PlaylistId) {
+        (self.playlists.values().cloned().collect(), self.next_id)
+    }
+
+    pub fn from_snapshot(playlists: Vec<Playlist>, next_id: PlaylistId) -> Self {
+        let map = playlists.into_iter().map(|p| (p.id, p)).collect();
+        Self {
+            playlists: map,
+            next_id: if next_id == 0 { 1 } else { next_id },
+        }
+    }
 }

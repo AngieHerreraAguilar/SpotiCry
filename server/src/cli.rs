@@ -24,6 +24,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::AppState;
+use crate::persistence::{self, LibrarySnapshot, PlaylistsSnapshot};
 
 pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
     print_banner();
@@ -39,6 +40,7 @@ pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
             Some(line) => line,
             None => {
                 println!("\n[cli] EOF — guardando y saliendo");
+                flush_state(&state).await;
                 break;
             }
         };
@@ -61,9 +63,7 @@ pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
             "help" | "?" => print_help(),
             "quit" | "exit" => {
                 println!("[cli] guardando estado…");
-                // TODO(Persona 1): persistir biblioteca + playlists antes de salir.
-                //   crate::persistence::save_library(&*state.library.read().await)?;
-                //   crate::persistence::save_playlists(&*state.playlists.read().await)?;
+                flush_state(&state).await;
                 println!("[cli] hasta luego.");
                 break;
             }
@@ -174,6 +174,24 @@ async fn handle_playlists(state: &Arc<AppState>) {
     }
     for pl in st.playlists.values() {
         println!("[{}] {} — {} canción(es)", pl.id, pl.name, pl.songs.len());
+    }
+}
+
+// ─── persistencia ────────────────────────────────────────────────────────
+
+/// Vuelca biblioteca + playlists a disco. Llamada en `quit`/`exit` y EOF.
+async fn flush_state(state: &Arc<AppState>) {
+    let (lib_songs, lib_next_id) = state.library.read().await.to_snapshot();
+    let (pls, pl_next_id) = state.playlists.read().await.to_snapshot();
+
+    let lib_snap = LibrarySnapshot { songs: lib_songs, next_id: lib_next_id };
+    let pl_snap = PlaylistsSnapshot { playlists: pls, next_id: pl_next_id };
+
+    if let Err(e) = persistence::save_library(&lib_snap).await {
+        eprintln!("✗ error guardando library: {e}");
+    }
+    if let Err(e) = persistence::save_playlists(&pl_snap).await {
+        eprintln!("✗ error guardando playlists: {e}");
     }
 }
 

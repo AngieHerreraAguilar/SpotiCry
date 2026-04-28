@@ -10,6 +10,7 @@ use axum::{
 
 use crate::{
     app_state::AppState,
+    domain::Song,
     playlists::ops,
     protocol::{ClientMsg, ServerEvent, SearchBy, ErrorCode, SortBy},
 };
@@ -237,6 +238,46 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
             let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
                 playlists: playlists_vec,
             });
+        }
+
+        // 🔎 PLAYLIST FILTER (búsqueda con scope a una playlist concreta)
+        ClientMsg::PlaylistFilter { playlist_id, by, value } => {
+            let songs: Vec<Song> = {
+                let lib = state.library.read().await;
+                let pl = state.playlists.read().await;
+                let library = lib.list();
+
+                match pl.playlists.get(&playlist_id).cloned() {
+                    Some(p) => match by {
+                        SearchBy::Title => {
+                            let q = value.as_str().unwrap_or("").to_lowercase();
+                            ops::filter_songs(&p, &library, |s| {
+                                s.title.to_lowercase().contains(&q)
+                            }).into_iter().collect()
+                        }
+                        SearchBy::Genre => {
+                            let g = value.as_str().unwrap_or("").to_string();
+                            ops::filter_songs(&p, &library, |s| s.genre == g)
+                                .into_iter().collect()
+                        }
+                        SearchBy::YearRange => {
+                            let range: Vec<u16> =
+                                serde_json::from_value(value).unwrap_or_default();
+                            if range.len() == 2 {
+                                let (from, to) = (range[0], range[1]);
+                                ops::filter_songs(&p, &library, |s| {
+                                    s.year >= from && s.year <= to
+                                }).into_iter().collect()
+                            } else {
+                                vec![]
+                            }
+                        }
+                    },
+                    None => vec![],
+                }
+            };
+
+            let _ = state.broadcast.send(ServerEvent::SearchResult { songs });
         }
 
         // 🔃 SORT

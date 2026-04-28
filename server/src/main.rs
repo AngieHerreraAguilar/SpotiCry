@@ -46,14 +46,11 @@ async fn main() -> anyhow::Result<()> {
     let (tx, _) = broadcast::channel(100);
 
     // 🔹 Cargar persistencia
-    let snap = persistence::load_library().await?;
+    let lib_snap = persistence::load_library().await?;
+    let pl_snap = persistence::load_playlists().await?;
 
-    let library = Library::from_snapshot(
-        snap.songs,
-        snap.next_id,
-    );
-
-    let playlists = Playlists::new();
+    let library = Library::from_snapshot(lib_snap.songs, lib_snap.next_id);
+    let playlists = Playlists::from_snapshot(pl_snap.playlists, pl_snap.next_id);
     let playback = Playback::new();
 
     // 🔹 Spotify (opcional). Sin SPOTIFY_CLIENT_ID/SECRET el server arranca igual,
