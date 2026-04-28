@@ -41,6 +41,17 @@ struct ImageResp {
     url: String,
 }
 
+#[derive(Deserialize)]
+struct SpotifyErrorEnvelope {
+    error: SpotifyErrorBody,
+}
+
+#[derive(Deserialize)]
+struct SpotifyErrorBody {
+    status: u16,
+    message: String,
+}
+
 impl SpotifyClient {
     /// Inicializa cliente con Client Credentials Flow
     pub async fn new() -> anyhow::Result<Self> {
@@ -57,29 +68,61 @@ impl SpotifyClient {
         })
     }
 
-    /// Devuelve el access token vigente; rspotify lo refresca solo si está expirado.
+    /// Devuelve el access token vigente. Refresca antes de devolverlo si ya
+    /// expiró (TTL de Client Credentials = 1 h). Sin esto, un servidor que
+    /// corre >1 h vería el siguiente `add-spotify` fallar con HTTP 401.
     async fn access_token(&self) -> anyhow::Result<String> {
+        let needs_refresh = {
+            let guard = self.spotify.token.lock().await
+                .map_err(|e| anyhow::anyhow!("token lock poisoned: {e:?}"))?;
+            match guard.as_ref() {
+                None => true,
+                Some(t) => t.is_expired(),
+            }
+        };
+
+        if needs_refresh {
+            self.spotify.refresh_token().await?;
+        }
+
         let guard = self.spotify.token.lock().await
             .map_err(|e| anyhow::anyhow!("token lock poisoned: {e:?}"))?;
         let token = guard
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("no token available"))?;
+            .ok_or_else(|| anyhow::anyhow!("token still missing after refresh"))?;
         Ok(token.access_token.clone())
+    }
+
+    /// Extrae el mensaje de error específico de Spotify del body
+    /// (`{"error":{"status":N,"message":"..."}}`) en vez de devolver solo el
+    /// status code. Cumple la regla de "Read the returned error message and
+    /// use it to provide meaningful feedback to the user".
+    async fn parse_spotify_error(resp: reqwest::Response) -> anyhow::Error {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        if let Ok(parsed) = serde_json::from_str::<SpotifyErrorEnvelope>(&body) {
+            anyhow::anyhow!("Spotify {} — {}", parsed.error.status, parsed.error.message)
+        } else {
+            anyhow::anyhow!("Spotify {} (no body)", status)
+        }
     }
 
     /// Obtiene un track por ID y lo convierte en Song.
     pub async fn fetch_track(&self, id: &str) -> anyhow::Result<Song> {
         let token = self.access_token().await?;
 
-        let track: TrackResp = self
+        let resp = self
             .http
             .get(format!("https://api.spotify.com/v1/tracks/{id}"))
             .bearer_auth(token)
             .send()
-            .await?
-            .error_for_status()?
-            .json()
             .await?;
+
+        if !resp.status().is_success() {
+            return Err(Self::parse_spotify_error(resp).await);
+        }
+
+        let track: TrackResp = resp.json().await?;
 
         let year = track
             .album
