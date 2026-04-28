@@ -1,23 +1,37 @@
 // SpotiCry — servidor
 //
-// Bootstrap: arranca la CLI (task paralela) + servidor axum (WebSocket + HTTP Range).
-// Owner: Persona 1 (backend). Coordinado con Persona 2 en Día 1.
+// Bootstrap: CLI (task paralela) + servidor axum (WebSocket + HTTP Range)
 
-mod cli;          // Persona 2
-mod domain;       // Persona 1
-mod http_stream;  // Persona 1
-mod library;      // Persona 1
-mod persistence;  // Persona 1
-mod playback;     // Persona 1
-mod playlists;    // Persona 1 (módulo funcional)
-mod protocol;     // Persona 2
-mod spotify;      // Persona 1
-mod ws;           // Persona 1
+mod cli;
+mod domain;
+mod http_stream;
+mod library;
+mod persistence;
+mod playback;
+mod playlists;
+mod protocol;
+mod spotify;
+mod ws;
+mod app_state;
 
 use std::sync::Arc;
 
+use axum::{Router, routing::get};
+use tokio::sync::broadcast;
+
+use crate::{
+    app_state::AppState,
+    ws::ws_handler,
+    http_stream::stream_song,
+    library::Library,
+    playback::Playback,
+    playlists::state::State as Playlists,
+};
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+
+    // 🔹 Logging
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -25,27 +39,49 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let state = Arc::new(AppState::load().await?);
+    // 🔹 Broadcast channel
+    let (tx, _) = broadcast::channel(100);
 
-    // TODO(Persona 1): spawn CLI loop on a separate task
-    // TODO(Persona 1): start axum server with WS + HTTP routes on port 8080
-    // TODO(Persona 1): wire graceful shutdown that flushes persistence
+    // 🔹 Cargar persistencia
+    let snap = persistence::load_library().await?;
 
-    tracing::info!("SpotiCry server starting (stub)");
-    let _ = state;
+    let library = Library::from_snapshot(
+        snap.songs,
+        snap.next_id,
+    );
+
+    let playlists = Playlists::new();
+    let playback = Playback::new();
+
+    // 🔹 Crear estado global
+    let state = Arc::new(AppState::new(
+        library,
+        playlists,
+        playback,
+        tx,
+    ));
+
+    // 🔹 CLI en paralelo (no bloquea el server)
+    let cli_state = state.clone();
+
+    tokio::spawn(async move {
+        if let Err(e) = crate::cli::run(cli_state).await {
+            tracing::error!("CLI error: {:?}", e);
+        }
+    });
+
+    // 🔹 Router Axum
+    let app = Router::new()
+        .route("/ws", get(ws_handler))
+        .route("/stream/:id", get(stream_song))
+        .with_state(state);
+
+    // 🔹 Servidor (puerto 8080 requerido)
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
+
+    tracing::info!("🚀 Server running on http://localhost:8080");
+
+    axum::serve(listener, app).await?;
+
     Ok(())
-}
-
-/// Shared application state. Persona 1 fills in concrete types from each module.
-pub struct AppState {
-    // pub library: Arc<tokio::sync::RwLock<library::Library>>,
-    // pub playlists: Arc<tokio::sync::RwLock<playlists::state::State>>,
-    // pub playback: Arc<playback::Playback>,
-    // pub broadcast: tokio::sync::broadcast::Sender<protocol::ServerEvent>,
-}
-
-impl AppState {
-    pub async fn load() -> anyhow::Result<Self> {
-        Ok(Self {})
-    }
 }

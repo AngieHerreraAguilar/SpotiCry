@@ -1,59 +1,72 @@
-// Gestión de la biblioteca de canciones (estilo imperativo).
-// Owner: Persona 1.
-//
-// Estado: `Arc<RwLock<HashMap<SongId, Song>>>` + índice secundario `HashMap<Genre, Vec<SongId>>`
-// para cumplir los 3 criterios de búsqueda técnicamente distintos:
-//   1. Título       → substring match sobre strings (scan lineal)
-//   2. Género       → lookup O(1) en el índice secundario
-//   3. Año (rango)  → filtro numérico con comparación de rangos
-//
-// Regla clave (enunciado): remove_song consulta playback::is_playing() y falla si está sonando.
-
-use id3::TagLike;
-
 use crate::domain::{Song, SongId};
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use crate::playback::Playback;
 
+use std::collections::HashMap;
+#[derive(Clone)]
 pub struct Library {
     songs: HashMap<SongId, Song>,
     by_genre: HashMap<String, Vec<SongId>>,
-    next_id: AtomicU64,
+    next_id: u64,
 }
 
 impl Library {
-    pub fn new() -> Self {
+    pub fn new(next_id: u64) -> Self {
         Self {
             songs: HashMap::new(),
             by_genre: HashMap::new(),
-            next_id: AtomicU64::new(1),
+            next_id,
         }
     }
 
-    pub fn next_id(&self) -> SongId {
-        self.next_id.fetch_add(1, Ordering::Relaxed)
+    fn rebuild_index(songs: &HashMap<SongId, Song>) -> HashMap<String, Vec<SongId>> {
+        let mut map = HashMap::new();
+
+        for (id, song) in songs {
+            map.entry(song.genre.clone())
+                .or_insert_with(Vec::new)
+                .push(*id);
+        }
+
+        map
+    }
+
+    pub fn from_snapshot(songs: Vec<Song>, next_id: u64) -> Self {
+        let mut map = HashMap::new();
+
+        for song in songs {
+            map.insert(song.id, song);
+        }
+
+        let by_genre = Self::rebuild_index(&map);
+
+        Self {
+            songs: map,
+            by_genre,
+            next_id,
+        }
     }
 
     pub fn add_song(&mut self, mut song: Song) -> SongId {
-        let id = self.next_id();
-        song.id = id;
-        
-        // indexar por género
-        self.by_genre
-        .entry(song.genre.clone())
-        .or_insert_with(Vec::new)
-        .push(id);
-    
-    self.songs.insert(id, song);
-    
-    id
-}
+        let id = self.next_id;
+        self.next_id += 1;
 
-pub fn add_song_from_file(&mut self, path: &Path) -> anyhow::Result<SongId> {
+        song.id = id;
+
+        self.by_genre
+            .entry(song.genre.clone())
+            .or_insert_with(Vec::new)
+            .push(id);
+
+        self.songs.insert(id, song);
+
+        id
+    }
+    pub fn add_song_from_file(&mut self, path: &std::path::Path) -> anyhow::Result<SongId> {
+        
+    use id3::Tag;
     use id3::TagLike;
 
-    let tag = id3::Tag::read_from_path(path)?;
+    let tag = Tag::read_from_path(path)?;
 
     let song = Song {
         id: 0,
@@ -63,99 +76,74 @@ pub fn add_song_from_file(&mut self, path: &Path) -> anyhow::Result<SongId> {
         genre: tag.genre().unwrap_or("Unknown").to_string(),
         year: tag.year().unwrap_or(0) as u16,
         duration_secs: 0,
-        file_path: Some(path.to_string_lossy().to_string()), // 🔥 FIX
+        file_path: Some(path.to_string_lossy().to_string()),
         spotify_preview_url: None,
-        cover_url: None, // 🔥 NUEVO
+        cover_url: None, // ⚠️ solo si existe en Song
     };
 
     Ok(self.add_song(song))
 }
 
-pub fn remove_song(&mut self, id: SongId) -> anyhow::Result<()> {
-    // 1. Validar si está en reproducción
-    if crate::playback::is_playing(id) {
-        anyhow::bail!("cannot delete playing song");
+
+pub fn remove_song(&mut self, id: SongId, playback: &Playback) -> anyhow::Result<()> {
+    // 🔴 REGLA CRÍTICA DEL ENUNCIADO
+    if playback.is_playing(&id) {
+        anyhow::bail!("CANNOT_DELETE_PLAYING");
     }
 
-    // 2. Eliminar de songs
-    if let Some(song) = self.songs.remove(&id) {
-        let genre = song.genre;
+    let song = match self.songs.remove(&id) {
+        Some(s) => s,
+        None => return Ok(()),
+    };
 
-        // 3. Eliminar del índice by_genre
-        if let Some(vec) = self.by_genre.get_mut(&genre) {
-            // quitar el id del vector
-            vec.retain(|&x| x != id);
+    if let Some(ids) = self.by_genre.get_mut(&song.genre) {
+        ids.retain(|x| *x != id);
 
-            // 4. limpiar si quedó vacío
-            if vec.is_empty() {
-                self.by_genre.remove(&genre);
-            }
+        if ids.is_empty() {
+            self.by_genre.remove(&song.genre);
         }
     }
 
     Ok(())
 }
 
-pub fn search_by_title(&self, substring: &str) -> Vec<Song> {
-    let mut result = Vec::new();
-    let query = substring.to_lowercase();
+    pub fn search_by_title(&self, q: &str) -> Vec<Song> {
+        let q = q.to_lowercase();
 
-    for song in self.songs.values() {
-        if song.title.to_lowercase().contains(&query) {
-            result.push(song.clone());
-        }
+        self.songs
+            .values()
+            .filter(|s| s.title.to_lowercase().contains(&q))
+            .cloned()
+            .collect()
     }
 
-    result
-}
-
-pub fn search_by_genre(&self, genre: &str) -> Vec<Song> {
-    let mut result = Vec::new();
-
-    if let Some(ids) = self.by_genre.get(genre) {
-        for id in ids {
-            if let Some(song) = self.songs.get(id) {
-                result.push(song.clone());
-            }
-        }
+    pub fn search_by_genre(&self, genre: &str) -> Vec<Song> {
+        self.by_genre
+            .get(genre)
+            .into_iter()
+            .flat_map(|ids| ids.iter())
+            .filter_map(|id| self.songs.get(id))
+            .cloned()
+            .collect()
     }
 
-    result
-}
-
-pub fn search_by_year_range(&self, from: u16, to: u16) -> Vec<Song> {
-    let mut result = Vec::new();
-
-    for song in self.songs.values() {
-        if song.year >= from && song.year <= to {
-            result.push(song.clone());
-        }
+    pub fn search_by_year_range(&self, from: u16, to: u16) -> Vec<Song> {
+        self.songs
+            .values()
+            .filter(|s| s.year >= from && s.year <= to)
+            .cloned()
+            .collect()
     }
 
-    result
-}
-
-pub fn list(&self) -> Vec<Song> {
-    let mut result = Vec::new();
-
-    for song in self.songs.values() {
-        result.push(song.clone());
+    pub fn list(&self) -> Vec<Song> {
+        self.songs.values().cloned().collect()
     }
 
-    result
-}
+    pub fn get(&self, id: SongId) -> Option<&Song> {
+        self.songs.get(&id)
+    }
 
-pub fn get(&self, id: SongId) -> Option<&Song> {
-    self.songs.get(&id)
-}
-
-// TODO(Persona 1): pub fn update(&mut self, id: SongId, new_song: Song) -> anyhow::Result<()>
-//     → debe fallar si playback::is_playing(id) es true
-
-    #[allow(dead_code)]
-    fn _silence_unused(&self) {
-        let _ = &self.songs;
-        let _ = &self.by_genre;
-        let _: &Path = Path::new("");
+    pub fn to_snapshot(&self) -> (Vec<Song>, u64) {
+        (self.songs.values().cloned().collect(), self.next_id)
     }
 }

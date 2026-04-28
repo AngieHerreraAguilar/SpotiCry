@@ -16,13 +16,9 @@
 // I/O: stdin/stdout asíncrono (tokio::io) para no bloquear el runtime mientras
 // se espera input del usuario. La salida usa `print!`/`println!` (sync) — el
 // flush eventual no compromete al servidor.
-//
-// Estado del wiring real con library/playlists/persistence:
-// los handlers tienen comentados, en cada caso, la llamada exacta que Persona 1
-// tiene que destapar cuando sus métodos estén implementados. Hoy compilan como
-// stubs (`println!("[TODO] ...")`) para que main.rs no se rompa.
 
 use std::io::{self, Write};
+use std::path::Path;
 use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -110,14 +106,10 @@ async fn handle_add(state: &Arc<AppState>, args: &[&str]) {
         return;
     }
     let path = args[0];
-    let _ = state;
-    // TODO(Persona 1): destapar cuando library.rs esté listo
-    //   use std::path::Path;
-    //   match state.library.write().await.add_song_from_file(Path::new(path)) {
-    //       Ok(id) => println!("✓ agregada (id {id}): {path}"),
-    //       Err(e) => eprintln!("✗ error agregando '{path}': {e}"),
-    //   }
-    println!("[TODO] add {path}");
+    match state.library.write().await.add_song_from_file(Path::new(path)) {
+        Ok(id) => println!("✓ agregada (id {id}): {path}"),
+        Err(e) => eprintln!("✗ error agregando '{path}': {e}"),
+    }
 }
 
 async fn handle_add_spotify(state: &Arc<AppState>, args: &[&str]) {
@@ -150,46 +142,36 @@ async fn handle_remove(state: &Arc<AppState>, args: &[&str]) {
             return;
         }
     };
-    let _ = state;
-    // TODO(Persona 1): destapar cuando library.rs::remove_song esté listo
-    //   match state.library.write().await.remove_song(id) {
-    //       Ok(()) => println!("✓ eliminada (id {id})"),
-    //       Err(e) => eprintln!("✗ no se pudo eliminar id {id}: {e}"),
-    //   }
-    // Nota: remove_song debe consultar playback::is_playing(id) y fallar con
-    //       CANNOT_DELETE_PLAYING si la canción está en reproducción
-    //       (requisito explícito del enunciado).
-    println!("[TODO] remove {id}");
+    // remove_song consulta playback::is_playing y devuelve CANNOT_DELETE_PLAYING
+    // si la canción está sonando (requisito explícito del enunciado).
+    match state.library.write().await.remove_song(id, &state.playback) {
+        Ok(()) => println!("✓ eliminada (id {id})"),
+        Err(e) => eprintln!("✗ no se pudo eliminar id {id}: {e}"),
+    }
 }
 
 async fn handle_list(state: &Arc<AppState>) {
-    let _ = state;
-    // TODO(Persona 1): destapar cuando library.rs::list esté listo
-    //   let lib = state.library.read().await;
-    //   let songs = lib.list();
-    //   if songs.is_empty() {
-    //       println!("(biblioteca vacía)");
-    //       return;
-    //   }
-    //   println!("{:<5} {:<32} {:<24} {:<6}", "ID", "TÍTULO", "ARTISTA", "AÑO");
-    //   for s in &songs {
-    //       println!("{:<5} {:<32} {:<24} {:<6}", s.id, s.title, s.artist, s.year);
-    //   }
-    println!("[TODO] list");
+    let lib = state.library.read().await;
+    let songs = lib.list();
+    if songs.is_empty() {
+        println!("(biblioteca vacía)");
+        return;
+    }
+    println!("{:<5} {:<32} {:<24} {:<6}", "ID", "TÍTULO", "ARTISTA", "AÑO");
+    for s in &songs {
+        println!("{:<5} {:<32} {:<24} {:<6}", s.id, s.title, s.artist, s.year);
+    }
 }
 
 async fn handle_playlists(state: &Arc<AppState>) {
-    let _ = state;
-    // TODO(Persona 1): destapar cuando playlists/state.rs esté listo
-    //   let st = state.playlists.read().await;
-    //   if st.playlists.is_empty() {
-    //       println!("(no hay playlists)");
-    //       return;
-    //   }
-    //   for pl in st.playlists.values() {
-    //       println!("[{}] {} — {} canción(es)", pl.id, pl.name, pl.songs.len());
-    //   }
-    println!("[TODO] playlists");
+    let st = state.playlists.read().await;
+    if st.playlists.is_empty() {
+        println!("(no hay playlists)");
+        return;
+    }
+    for pl in st.playlists.values() {
+        println!("[{}] {} — {} canción(es)", pl.id, pl.name, pl.songs.len());
+    }
 }
 
 // ─── tests ───────────────────────────────────────────────────────────────
