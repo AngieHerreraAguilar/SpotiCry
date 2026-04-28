@@ -5,7 +5,7 @@
 // define el shape de la respuesta, también filtra localmente para que el UX
 // sea inmediato.
 import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { sendCmd } from '../api/ws';
 import { usePlaylists } from '../store/playlists';
 import { useLibrary } from '../store/library';
@@ -34,6 +34,8 @@ export function PlaylistView() {
   const play = usePlayer((s) => s.play);
   const sortBy = usePlaylists((s) => s.sortBy);
   const removeSong = usePlaylists((s) => s.removeSong);
+  const removePlaylist = usePlaylists((s) => s.remove);
+  const navigate = useNavigate();
 
   // Filtro local + sincronización con el backend (módulo funcional)
   const [filterBy, setFilterBy] = useState(null);
@@ -140,6 +142,18 @@ export function PlaylistView() {
           <button onClick={() => sortBy(pid, 'year')}>Año</button>
           <button onClick={() => sortBy(pid, 'duration')}>Duración</button>
         </div>
+        <button
+          type="button"
+          className="btn-danger"
+          onClick={() => {
+            if (window.confirm(`¿Eliminar la playlist "${playlist.name}"?`)) {
+              removePlaylist(pid);
+              navigate('/');
+            }
+          }}
+        >
+          Eliminar playlist
+        </button>
       </div>
 
       <div className="playlist-filter">
