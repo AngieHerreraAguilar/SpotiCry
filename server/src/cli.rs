@@ -84,13 +84,14 @@ fn print_banner() {
 
 pub fn print_help() {
     println!("Comandos disponibles:");
-    println!("  add <ruta-mp3>        Agrega una canción desde archivo (lee tags ID3)");
-    println!("  add-spotify <id>      Agrega desde Spotify (solo metadata + preview)");
-    println!("  remove <song-id>      Elimina una canción (falla si está sonando)");
-    println!("  list                  Lista todas las canciones de la biblioteca");
-    println!("  playlists             Lista todas las playlists globales");
-    println!("  help                  Muestra esta ayuda");
-    println!("  quit                  Guarda estado y sale");
+    println!("  add <ruta> <spotify-id>  MP3 local + metadata y portada de Spotify");
+    println!("  add <ruta>               MP3 local con metadata leída de tags ID3 (fallback)");
+    println!("  add-spotify <id>         Solo metadata de Spotify, sin MP3 local");
+    println!("  remove <song-id>         Elimina una canción (falla si está sonando)");
+    println!("  list                     Lista todas las canciones de la biblioteca");
+    println!("  playlists                Lista todas las playlists globales");
+    println!("  help                     Muestra esta ayuda");
+    println!("  quit                     Guarda estado y sale");
 }
 
 fn prompt() {
@@ -101,14 +102,51 @@ fn prompt() {
 // ─── handlers ────────────────────────────────────────────────────────────
 
 async fn handle_add(state: &Arc<AppState>, args: &[&str]) {
-    if args.len() != 1 {
-        eprintln!("Uso: add <ruta-mp3>");
+    let (path_str, track_id) = match args {
+        [p] => (*p, None),
+        [p, t] => (*p, Some(*t)),
+        _ => {
+            eprintln!("Uso: add <ruta-mp3> [spotify-track-id]");
+            eprintln!("  con track-id: usa metadata + portada de Spotify (recomendado).");
+            eprintln!("  sin track-id: lee metadata de los tags ID3 del MP3.");
+            return;
+        }
+    };
+
+    let path = Path::new(path_str);
+    if !path.exists() {
+        eprintln!("✗ archivo no encontrado: {path_str}");
         return;
     }
-    let path = args[0];
-    match state.library.write().await.add_song_from_file(Path::new(path)) {
-        Ok(id) => println!("✓ agregada (id {id}): {path}"),
-        Err(e) => eprintln!("✗ error agregando '{path}': {e}"),
+
+    // Modo recomendado: MP3 local + metadata Spotify (incluida portada).
+    if let Some(track_id) = track_id {
+        let Some(spotify) = state.spotify.as_ref() else {
+            eprintln!(
+                "✗ Spotify no configurado. Setea SPOTIFY_CLIENT_ID/SECRET en server/.env, \
+                 o usa `add <ruta>` sin track-id para leer tags ID3."
+            );
+            return;
+        };
+        match spotify.fetch_track(track_id).await {
+            Ok(mut song) => {
+                // Combinar: file_path local, todo lo demás de Spotify.
+                song.file_path = Some(path_str.to_string());
+                let title = song.title.clone();
+                let artist = song.artist.clone();
+                let id = state.library.write().await.add_song(song);
+                println!("✓ agregada (id {id}) desde Spotify: {artist} — {title}");
+                println!("    archivo: {path_str}");
+            }
+            Err(e) => eprintln!("✗ error consultando Spotify: {e}"),
+        }
+        return;
+    }
+
+    // Fallback: solo tags ID3.
+    match state.library.write().await.add_song_from_file(path) {
+        Ok(id) => println!("✓ agregada (id {id}) desde ID3: {path_str}"),
+        Err(e) => eprintln!("✗ error agregando '{path_str}': {e}"),
     }
 }
 
