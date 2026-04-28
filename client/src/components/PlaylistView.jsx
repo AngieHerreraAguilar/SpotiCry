@@ -41,14 +41,13 @@ export function PlaylistView() {
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
 
-  if (!playlist) return <p className="empty">Playlist no encontrada</p>;
-
-  const items = playlist.songs
-    .map((sid) => songs.find((s) => s.id === sid))
-    .filter(Boolean);
-
-  const totalSecs = items.reduce((acc, s) => acc + (s.duration_secs ?? 0), 0);
-  const mosaicSlots = Array.from({ length: 4 }, (_, i) => items[i]);
+  // Todos los hooks se llaman incondicionalmente; el early return va al final.
+  const items = useMemo(() => {
+    if (!playlist) return [];
+    return playlist.songs
+      .map((sid) => songs.find((s) => s.id === sid))
+      .filter(Boolean);
+  }, [playlist, songs]);
 
   const displayedItems = useMemo(() => {
     if (!filterBy) return items;
@@ -69,6 +68,10 @@ export function PlaylistView() {
     return items;
   }, [items, filterBy, filterText, yearFrom, yearTo]);
 
+  if (!playlist) return <p className="empty">Playlist no encontrada</p>;
+
+  const totalSecs = items.reduce((acc, s) => acc + (s.duration_secs ?? 0), 0);
+  const mosaicSlots = Array.from({ length: 4 }, (_, i) => items[i]);
   const isFiltering = filterBy && displayedItems.length !== items.length;
 
   function applyFilter() {
