@@ -26,10 +26,13 @@ use crate::{
     library::Library,
     playback::Playback,
     playlists::state::State as Playlists,
+    spotify::SpotifyClient,
 };
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Carga server/.env si existe (provee SPOTIFY_CLIENT_ID/SECRET sin prefijar el comando).
+    let _ = dotenvy::dotenv();
 
     // 🔹 Logging
     tracing_subscriber::fmt()
@@ -53,12 +56,28 @@ async fn main() -> anyhow::Result<()> {
     let playlists = Playlists::new();
     let playback = Playback::new();
 
+    // 🔹 Spotify (opcional). Sin SPOTIFY_CLIENT_ID/SECRET el server arranca igual,
+    //    solo `add-spotify` queda deshabilitado.
+    let spotify = match SpotifyClient::new().await {
+        Ok(c) => {
+            tracing::info!("✓ Spotify conectado (Client Credentials)");
+            Some(Arc::new(c))
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Spotify deshabilitado ({e}). Setea SPOTIFY_CLIENT_ID y SPOTIFY_CLIENT_SECRET para habilitar add-spotify."
+            );
+            None
+        }
+    };
+
     // 🔹 Crear estado global
     let state = Arc::new(AppState::new(
         library,
         playlists,
         playback,
         tx,
+        spotify,
     ));
 
     // 🔹 CLI en paralelo (no bloquea el server)

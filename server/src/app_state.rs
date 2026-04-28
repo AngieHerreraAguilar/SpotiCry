@@ -27,6 +27,7 @@ use crate::{
     playback::Playback,
     playlists::state::State as Playlists,
     protocol::ServerEvent,
+    spotify::SpotifyClient,
 };
 
 #[derive(Clone)]
@@ -42,6 +43,10 @@ pub struct AppState {
 
     /// Canal broadcast WS
     pub broadcast: broadcast::Sender<ServerEvent>,
+
+    /// Cliente Spotify. `None` si SPOTIFY_CLIENT_ID/SECRET no estaban presentes
+    /// al arrancar — el resto del server arranca igual; solo `add-spotify` falla.
+    pub spotify: Option<Arc<SpotifyClient>>,
 }
 
 impl AppState {
@@ -50,12 +55,14 @@ impl AppState {
         playlists: Playlists,
         playback: Playback,
         broadcast: broadcast::Sender<ServerEvent>,
+        spotify: Option<Arc<SpotifyClient>>,
     ) -> Self {
         Self {
             library: Arc::new(RwLock::new(library)),
             playlists: Arc::new(RwLock::new(playlists)),
             playback: Arc::new(playback),
             broadcast,
+            spotify,
         }
     }
 }

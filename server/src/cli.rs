@@ -118,16 +118,19 @@ async fn handle_add_spotify(state: &Arc<AppState>, args: &[&str]) {
         return;
     }
     let track_id = args[0];
-    let _ = state;
-    // TODO(Persona 1): destapar cuando spotify.rs + library.rs estén listos
-    //   match state.spotify.fetch_track(track_id).await {
-    //       Ok(song) => {
-    //           let id = state.library.write().await.add_song(song);
-    //           println!("✓ agregada desde Spotify (id {id}): {track_id}");
-    //       }
-    //       Err(e) => eprintln!("✗ error consultando Spotify: {e}"),
-    //   }
-    println!("[TODO] add-spotify {track_id}");
+    let Some(spotify) = state.spotify.as_ref() else {
+        eprintln!(
+            "✗ Spotify no configurado: setea SPOTIFY_CLIENT_ID y SPOTIFY_CLIENT_SECRET y reinicia el server."
+        );
+        return;
+    };
+    match spotify.fetch_track(track_id).await {
+        Ok(song) => {
+            let id = state.library.write().await.add_song(song);
+            println!("✓ agregada desde Spotify (id {id}): {track_id}");
+        }
+        Err(e) => eprintln!("✗ error consultando Spotify: {e}"),
+    }
 }
 
 async fn handle_remove(state: &Arc<AppState>, args: &[&str]) {
