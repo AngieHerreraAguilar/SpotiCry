@@ -74,7 +74,9 @@ Para cada bloque se describe **qué hace** seguido de **por qué se hizo así**.
 
 ### 3.1 Biblioteca y búsqueda
 
-**Qué hace.** Mantiene una colección de canciones (`Song`) cargadas desde MP3s locales y/o desde Spotify (metadata + portada + preview de 30 s). Permite agregar, eliminar, listar y buscar por tres criterios.
+**Qué hace.** Mantiene una colección de canciones (`Song`) cargadas desde MP3s locales y/o desde Spotify (metadata + portada + preview de 30 s cuando esté disponible). Permite agregar, eliminar, listar y buscar por tres criterios.
+
+> **Nota sobre el preview de Spotify.** Desde 2024 Spotify dejó de exponer `preview_url` en la mayoría de las respuestas de la Web API para aplicaciones con Client Credentials Flow. En la práctica esto significa que para la mayor parte de los tracks el campo viene en `null`. Por eso el flujo recomendado es `add <ruta-mp3> <spotify-id>` (MP3 local + metadata + portada) en lugar de `add-spotify <id>` solo, que solo funciona en los pocos tracks que aún devuelven preview.
 
 - **Auto-scan** al iniciar el servidor: detecta MP3s nuevos en la carpeta `library/` y los configura via CLI con un menú simple (`[s]` enlace de Spotify, `[m]` metadata manual, `[t]` tags ID3, `[x]` saltar). Las preferencias se guardan en `library/tracks.json` para que arranques siguientes sean automáticos sin intervención del usuario.
 - **Tres algoritmos de búsqueda técnicamente distintos:**
@@ -185,7 +187,7 @@ Para cada bloque se describe **qué hace** seguido de **por qué se hizo así**.
 - Sin autenticación de usuario (solo Client Credentials Flow para metadata pública).
 - No se importan playlists desde Spotify; las playlists viven solo en SpotiCry.
 - La búsqueda solo opera sobre la biblioteca local, no sobre el catálogo global de Spotify.
-- Las canciones sin MP3 local solo reproducen el preview de 30 s.
+- **El preview de 30 s no está garantizado.** Spotify cambió su política en 2024 y dejó de exponer `preview_url` en la mayoría de tracks vía Client Credentials Flow. Las canciones sin MP3 local quedan registradas con metadata + portada pero pueden no ser reproducibles. El modo recomendado es siempre combinar el MP3 local con el track ID de Spotify (`add <ruta-mp3> <spotify-id>`).
 
 ### 4.2 Persistencia avanzada
 - No hay base de datos relacional; el estado vive en archivos JSON locales.
@@ -461,7 +463,7 @@ Todos los items del MVP del enunciado quedaron operativos al cierre del proyecto
 5. **Streaming** → `<audio>` hace `GET /stream/:id` con `Range: bytes=0-` → handler responde `206 Partial Content` con el slice. Seeks generan nuevas Range requests automáticas.
 6. **Stop** → cambio de canción / pausa / cierre de pestaña → `sendCmd("stop", { song_id })` → `Playback::mark_stopped` → libera para `remove`.
 
-Caso especial: si la canción se agregó con `add-spotify` y no hay archivo local, `file_path` queda en `None` y el endpoint hace de proxy hacia `spotify_preview_url` (preview de 30 s).
+Caso especial: si la canción se agregó con `add-spotify` y no hay archivo local, `file_path` queda en `None` y el endpoint hace de proxy hacia `spotify_preview_url` (preview de 30 s). En la práctica este fallback solo funciona para los tracks donde Spotify aún expone `preview_url` — desde 2024 la mayoría devuelve `null` por cambios en la política de Client Credentials Flow.
 
 ### 8.4 Capturas de pantalla
 
@@ -495,6 +497,7 @@ El compilador atrapa una clase entera de errores que en lenguajes dinámicos se 
 - **Caché de medios de Chrome**: tras varios resets de `library.json`, Chrome servía audio antiguo asociado a un `id` que ahora apuntaba a otro archivo. `Cmd+Shift+R` no lo limpiaba. Se arregló con `Cache-Control: no-cache` + cache-buster `?t=<timestamp>`.
 - **IDs en UI vs IDs reales**: la columna `01..05` en `SongList.jsx` mostraba `idx + 1` (posición), no el `id` real. Eso confundía cuando se hacía `remove <n>` en la CLI. Se cambió para mostrar `s.id` con padding 2 dígitos; ahora UI ↔ CLI son consistentes.
 - **`PlaylistFilter` sin handler**: el match arm en `ws.rs` faltaba y la variante caía silenciosamente en `_ => {}`. Se descubrió revisando warnings de `cargo check` ("function `filter_songs` is never used").
+- **Spotify dejó de devolver `preview_url`**: a mitad del proyecto descubrimos que la API de Spotify en 2024 dejó de incluir `preview_url` en la mayoría de los tracks accedidos vía Client Credentials Flow. Esto invalidó parcialmente el modo `add-spotify <id>` (que dependía solo del preview) y nos llevó a priorizar el flujo combinado `add <ruta-mp3> <spotify-id>`: MP3 local para el audio, Spotify solo para metadata y portada.
 
 ### 9.6 Recomendaciones / qué cambiaríamos en producción
 
