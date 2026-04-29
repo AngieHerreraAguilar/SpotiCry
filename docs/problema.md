@@ -94,14 +94,27 @@ imperativa y funcional dentro del mismo proyecto.
 
 ### NO está dentro del alcance
 
-- Autenticación de usuarios (sin login, sin sesiones, sin tokens propios).
-- Base de datos relacional o key-value — la persistencia es JSON plano.
-- Reproducción simultánea coordinada entre clientes ("Spotify Connect").
-- CDN / segmentación HLS o DASH — el streaming es Range simple.
-- Letras sincronizadas, recomendaciones, radio, álbumes premium.
-- Ecualizador, efectos de audio o procesamiento DSP.
-- Despliegue automático en producción (se evalúa como stretch en Día 4 con
-  Azure Static Web Apps + Cloudflare Tunnel).
+- **Autenticación de usuarios**: sin login, sin sesiones, sin tokens propios.
+  La decisión es deliberada: las playlists globales compartidas maximizan el
+  material a documentar sobre concurrencia, mientras que un sistema de auth
+  añade complejidad ortogonal a los objetivos del curso.
+- **Base de datos relacional o key-value**: la persistencia es JSON plano
+  (`library.json`, `playlists.json`) por ser el mecanismo más simple que aún
+  permite ilustrar el ciclo "leer al arrancar / escribir tras mutación con
+  debounce" sin oscurecer el problema con configuración de un DBMS.
+- **Reproducción simultánea coordinada entre clientes** ("Spotify Connect"):
+  no hay un protocolo que sincronice posición de reproducción entre pestañas;
+  cada cliente reproduce localmente con su propio `<audio>`.
+- **CDN / segmentación HLS o DASH**: el streaming es HTTP Range simple, que
+  cumple el "envío de paquetes de bytes" del enunciado sin pedir infraestructura
+  externa de distribución.
+- **Letras sincronizadas, recomendaciones, radio, álbumes premium**: ninguna
+  de estas funciones aporta a los objetivos pedagógicos del proyecto.
+- **Ecualizador, efectos de audio o procesamiento DSP**: el `<audio>` del
+  navegador se usa tal cual; no hay procesamiento de señal en el servidor.
+- **Despliegue automático en producción** (Azure Static Web Apps, Cloudflare
+  Tunnel, etc.): la entrega corre en `localhost`. Un screencast acompaña la
+  demo si la red del jurado lo requiere.
 
 ### Restricciones técnicas explícitas del enunciado
 

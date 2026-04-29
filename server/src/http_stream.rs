@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
-    http::{Request, StatusCode, HeaderMap},
-    response::IntoResponse,
+    http::{header::CACHE_CONTROL, HeaderMap, HeaderValue, Request, StatusCode},
+    response::{IntoResponse, Response},
     body::Body,
 };
 
@@ -14,6 +14,18 @@ use crate::{
     app_state::AppState,
     domain::SongId,
 };
+
+/// Inyecta `Cache-Control: no-cache` para que el navegador revalide cada
+/// Range request en vez de reusar respuestas antiguas. Sin esto, Chrome
+/// aplica heurística agresiva sobre `/stream/<id>` y puede servir el audio
+/// cacheado de un id anterior tras un reset de la library.
+fn no_cache(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("no-cache"),
+    );
+    response
+}
 
 /// GET /stream/:id
 pub async fn stream_song(
@@ -36,6 +48,10 @@ pub async fn stream_song(
     // 🔹 2. Caso: archivo local
     if let Some(path) = song.file_path {
 
+        // mark_playing solo: el `mark_stopped` lo dispara el cliente vía WS (op `stop`)
+        // o el cierre del WebSocket. Marcar stopped aquí ejecutaba antes de que el
+        // cliente terminara de leer el stream y rompía la regla "no borrar canción
+        // reproduciéndose".
         state.playback.mark_playing(&id);
 
         let service = ServeFile::new(path);
@@ -47,14 +63,10 @@ pub async fn stream_song(
 
         *request.headers_mut() = headers.clone();
 
-        let response = match service.oneshot(request).await {
-            Ok(res) => res.into_response(),
+        return match service.oneshot(request).await {
+            Ok(res) => no_cache(res.into_response()),
             Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         };
-
-        state.playback.mark_stopped(&id);
-
-        return response;
     }
 
     // 🔹 3. Caso: Spotify preview (proxy)
@@ -64,7 +76,7 @@ pub async fn stream_song(
 
         let client = reqwest::Client::new();
 
-        let response = match client.get(url).send().await {
+        return match client.get(url).send().await {
             Ok(resp) => {
                 let status = resp.status();
                 let headers = resp.headers().clone();
@@ -75,14 +87,10 @@ pub async fn stream_song(
                 // 🔥 copiar headers importantes (content-type, etc)
                 *axum_response.headers_mut() = headers;
 
-                axum_response
+                no_cache(axum_response)
             }
             Err(_) => StatusCode::BAD_GATEWAY.into_response(),
         };
-
-        state.playback.mark_stopped(&id);
-
-        return response;
     }
 
     // 🔹 4. No hay fuente

@@ -39,6 +39,11 @@ impl Library {
 
         let by_genre = Self::rebuild_index(&map);
 
+        // El id 0 queda reservado: nunca se asigna a una canción real para que
+        // `remove 0` siempre devuelva NOT_FOUND y la columna "00" no aparezca
+        // en la UI. Mismo criterio que `playlists/state.rs::from_snapshot`.
+        let next_id = if next_id == 0 { 1 } else { next_id };
+
         Self {
             songs: map,
             by_genre,
@@ -47,6 +52,9 @@ impl Library {
     }
 
     pub fn add_song(&mut self, mut song: Song) -> SongId {
+        if self.next_id == 0 {
+            self.next_id = 1;
+        }
         let id = self.next_id;
         self.next_id += 1;
 
@@ -93,7 +101,7 @@ pub fn remove_song(&mut self, id: SongId, playback: &Playback) -> anyhow::Result
 
     let song = match self.songs.remove(&id) {
         Some(s) => s,
-        None => return Ok(()),
+        None => anyhow::bail!("NOT_FOUND"),
     };
 
     if let Some(ids) = self.by_genre.get_mut(&song.genre) {
@@ -136,7 +144,11 @@ pub fn remove_song(&mut self, id: SongId, playback: &Playback) -> anyhow::Result
     }
 
     pub fn list(&self) -> Vec<Song> {
-        self.songs.values().cloned().collect()
+        // Ordenar por id ascendente para que la UI muestre 01, 02, 03... en
+        // orden estable (HashMap::values no preserva orden de inserción).
+        let mut songs: Vec<Song> = self.songs.values().cloned().collect();
+        songs.sort_by_key(|s| s.id);
+        songs
     }
 
     pub fn get(&self, id: SongId) -> Option<&Song> {
@@ -211,5 +223,15 @@ mod tests {
         playback.mark_stopped(&id);
 
         assert!(lib.remove_song(id, &playback).is_ok());
+    }
+
+    #[test]
+    fn remove_unknown_id_errors_not_found() {
+        let mut lib = Library::new(0);
+        let playback = Playback::new();
+
+        let result = lib.remove_song(9999, &playback);
+        assert!(result.is_err(), "remove de id inexistente debe fallar, no devolver Ok");
+        assert_eq!(result.unwrap_err().to_string(), "NOT_FOUND");
     }
 }

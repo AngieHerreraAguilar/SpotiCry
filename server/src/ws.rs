@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use axum::{
@@ -10,7 +11,7 @@ use axum::{
 
 use crate::{
     app_state::AppState,
-    domain::Song,
+    domain::{Song, SongId},
     playlists::ops,
     protocol::{ClientMsg, ServerEvent, SearchBy, ErrorCode, SortBy},
 };
@@ -26,6 +27,11 @@ pub async fn ws_handler(
 /// Maneja conexión viva
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.broadcast.subscribe();
+
+    // Canciones que este cliente dejó "playing" sin haber enviado `stop`.
+    // Si la conexión se cae (cierre de pestaña), las marcamos stopped al final
+    // para que la regla "no borrar canción en reproducción" no quede congelada.
+    let mut owned_playing: HashSet<SongId> = HashSet::new();
 
     // 🔹 Snapshot inicial (SIN locks durante await)
     let songs = {
@@ -59,7 +65,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                     match serde_json::from_str::<ClientMsg>(&text) {
 
                         Ok(cmd) => {
-                            handle_client_msg(cmd, &state).await;
+                            handle_client_msg(cmd, &state, &mut owned_playing).await;
                         }
 
                         Err(_) => {
@@ -85,10 +91,20 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             else => break,
         }
     }
+
+    // 🔌 Cleanup: liberar las canciones que este cliente tenía "playing".
+    for id in owned_playing.drain() {
+        state.playback.mark_stopped(&id);
+        let _ = state.broadcast.send(ServerEvent::PlaybackStopped { song_id: id });
+    }
 }
 
 /// Router lógico
-async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
+async fn handle_client_msg(
+    cmd: ClientMsg,
+    state: &Arc<AppState>,
+    owned_playing: &mut HashSet<SongId>,
+) {
     match cmd {
 
         // 🔍 SEARCH
@@ -135,7 +151,18 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
 
         // ▶ PLAY
         ClientMsg::Play { song_id } => {
+            // Validación: NotFound si la canción no existe en library.
+            let exists = state.library.read().await.get(song_id).is_some();
+            if !exists {
+                let _ = state.broadcast.send(ServerEvent::Error {
+                    code: ErrorCode::NotFound,
+                    msg: format!("song {song_id} not found"),
+                });
+                return;
+            }
+
             state.playback.mark_playing(&song_id);
+            owned_playing.insert(song_id);
 
             let _ = state.broadcast.send(ServerEvent::NowPlaying {
                 song_id,
@@ -146,6 +173,7 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
         // ⏹ STOP
         ClientMsg::Stop { song_id } => {
             state.playback.mark_stopped(&song_id);
+            owned_playing.remove(&song_id);
 
             let _ = state.broadcast.send(ServerEvent::PlaybackStopped {
                 song_id,
@@ -166,21 +194,36 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
 
         // ➕ CREATE
         ClientMsg::PlaylistCreate { name } => {
-            let (next_state, _) = {
+            let result = {
                 let pl = state.playlists.read().await;
-                ops::create(&pl, name)
+                ops::create(&pl, name.clone())
             };
 
-            {
-                let mut pl = state.playlists.write().await;
-                *pl = next_state.clone();
+            match result {
+                Some((next_state, _)) => {
+                    {
+                        let mut pl = state.playlists.write().await;
+                        *pl = next_state.clone();
+                    }
+                    let playlists_vec = next_state.playlists.values().cloned().collect();
+                    let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
+                        playlists: playlists_vec,
+                    });
+                    let _ = state.save_tx.try_send(());
+                }
+                None => {
+                    let trimmed = name.trim();
+                    let msg = if trimmed.is_empty() {
+                        "El nombre no puede estar vacío".to_string()
+                    } else {
+                        format!("Ya existe una playlist con el nombre '{trimmed}'")
+                    };
+                    let _ = state.broadcast.send(ServerEvent::Error {
+                        code: ErrorCode::BadRequest,
+                        msg,
+                    });
+                }
             }
-
-            let playlists_vec = next_state.playlists.values().cloned().collect();
-
-            let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
-                playlists: playlists_vec,
-            });
         }
 
         // ❌ DELETE
@@ -200,6 +243,7 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
             let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
                 playlists: playlists_vec,
             });
+            let _ = state.save_tx.try_send(());
         }
 
         // ➕ ADD SONG
@@ -219,6 +263,7 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
             let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
                 playlists: playlists_vec,
             });
+            let _ = state.save_tx.try_send(());
         }
 
         // ➖ REMOVE SONG
@@ -238,6 +283,7 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
             let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
                 playlists: playlists_vec,
             });
+            let _ = state.save_tx.try_send(());
         }
 
         // 🔎 PLAYLIST FILTER (búsqueda con scope a una playlist concreta)
@@ -316,6 +362,7 @@ async fn handle_client_msg(cmd: ClientMsg, state: &Arc<AppState>) {
                 let _ = state.broadcast.send(ServerEvent::PlaylistSnapshot {
                     playlists: playlists_vec,
                 });
+                let _ = state.save_tx.try_send(());
             }
         }
 

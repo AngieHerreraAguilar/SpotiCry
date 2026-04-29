@@ -20,6 +20,12 @@ export const usePlayer = create((set, get) => ({
   play: (song) => {
     const audio = get().audioEl;
     if (!audio) return;
+    // Si veníamos reproduciendo otra canción, avisar stop al servidor para
+    // que `playback` no la siga marcando como en reproducción.
+    const prev = get().currentSong;
+    if (prev && prev.id !== song.id) {
+      sendCmd('stop', { song_id: prev.id });
+    }
     audio.src = streamUrl(song.id);
     audio.play();
     sendCmd('play', { song_id: song.id });
@@ -28,9 +34,27 @@ export const usePlayer = create((set, get) => ({
 
   togglePause: () => {
     const audio = get().audioEl;
-    if (!audio) return;
-    if (audio.paused) audio.play();
-    else audio.pause();
+    const id = get().currentSong?.id;
+    if (!audio || id === undefined || id === null) return;
+    if (audio.paused) {
+      audio.play();
+      // Reanudar: avisar al server que la canción vuelve a sonar.
+      sendCmd('play', { song_id: id });
+    } else {
+      audio.pause();
+      // Pausar: avisar al server para que `playback` no la siga marcando como
+      // en reproducción (sino `remove` falla con CANNOT_DELETE_PLAYING).
+      sendCmd('stop', { song_id: id });
+    }
+  },
+
+  /// Llamado desde el listener `onEnded` del <audio>. La canción se acabó por
+  /// si misma (no por intervención del usuario), pero el server tiene que
+  /// liberar `playback` igualmente.
+  _endedNaturally: () => {
+    const id = get().currentSong?.id;
+    if (id !== undefined && id !== null) sendCmd('stop', { song_id: id });
+    set({ isPlaying: false });
   },
 
   stop: () => {

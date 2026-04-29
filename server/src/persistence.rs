@@ -1,6 +1,8 @@
+use crate::app_state::AppState;
 use crate::domain::{Playlist, Song};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 
 use tokio::sync::mpsc::Receiver;
 use tokio::time::{sleep, Duration};
@@ -62,14 +64,30 @@ pub async fn save_playlists(snap: &PlaylistsSnapshot) -> anyhow::Result<()> {
    DEBOUNCER
 ========================= */
 
-pub async fn spawn_debouncer(mut rx: Receiver<()>) {
-    tokio::spawn(async move {
-        while rx.recv().await.is_some() {
-            sleep(Duration::from_millis(500)).await;
+/// Drena el canal con coalesce de 500 ms y vuelca library + playlists a JSON.
+///
+/// Llamada desde `main` con `tokio::spawn(run_debouncer(rx, state))`. Cada
+/// mutación en `ws.rs` o `cli.rs` envía `()` por `state.save_tx.try_send(())`.
+/// Si llegan varios eventos en ráfaga (p. ej. múltiples adds simultáneos desde
+/// distintas pestañas) se agrupan en un solo flush gracias al `try_recv` loop.
+pub async fn run_debouncer(mut rx: Receiver<()>, state: Arc<AppState>) {
+    while rx.recv().await.is_some() {
+        // Coalesce: espera 500ms y consume cualquier evento adicional que haya
+        // llegado en ese intervalo. El siguiente flush los cubre a todos.
+        sleep(Duration::from_millis(500)).await;
+        while rx.try_recv().is_ok() {}
 
-            // aquí conectas:
-            // save_library(...)
-            // save_playlists(...)
+        let (lib_songs, lib_next) = state.library.read().await.to_snapshot();
+        let (pls, pl_next) = state.playlists.read().await.to_snapshot();
+
+        let lib_snap = LibrarySnapshot { songs: lib_songs, next_id: lib_next };
+        let pl_snap = PlaylistsSnapshot { playlists: pls, next_id: pl_next };
+
+        if let Err(e) = save_library(&lib_snap).await {
+            tracing::warn!("debouncer: save_library failed: {e}");
         }
-    });
+        if let Err(e) = save_playlists(&pl_snap).await {
+            tracing::warn!("debouncer: save_playlists failed: {e}");
+        }
+    }
 }

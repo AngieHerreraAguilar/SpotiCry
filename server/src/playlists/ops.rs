@@ -5,22 +5,35 @@ use crate::domain::{Playlist, PlaylistId, Song, SongId};
 // Mutaciones (devuelven State nuevo)
 // ─────────────────────────────────────────────────────────────────────────
 
-pub fn create(state: &State, name: String) -> (State, PlaylistId) {
-    let id = state.next_id;
+/// Crea una playlist nueva. Devuelve `None` si el nombre está vacío
+/// (tras trim) o si ya existe otra playlist con el mismo nombre
+/// (case-insensitive). Sigue siendo función pura: solo lee `state`.
+pub fn create(state: &State, name: String) -> Option<(State, PlaylistId)> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let needle = trimmed.to_lowercase();
+    let duplicate = state.playlists.values()
+        .any(|p| p.name.trim().to_lowercase() == needle);
+    if duplicate {
+        return None;
+    }
 
+    let id = state.next_id;
     let pl = Playlist {
         id,
-        name,
+        name: trimmed.to_string(),
         songs: im::Vector::new(),
     };
 
-    (
+    Some((
         State {
             playlists: state.playlists.update(id, pl),
             next_id: id + 1,
         },
         id,
-    )
+    ))
 }
 
 pub fn delete(state: &State, pid: PlaylistId) -> State {

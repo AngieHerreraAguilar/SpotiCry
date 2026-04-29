@@ -1,12 +1,12 @@
 // Modal para crear playlist. Owner: Persona 2.
 // Diseño: Figma "Create Playlist" Desktop (1:2217) / Mobile (132:376) — bottom sheet.
 // Solo `name` se envía al backend (es lo único que el contrato actual soporta).
-// El dropzone es visual; cuando `cover_url` se cablee al modelo se conecta acá.
 import { useEffect, useRef, useState } from 'react';
 import { usePlaylists } from '../store/playlists';
 
 export function CreatePlaylistModal({ isOpen, onClose }) {
   const create = usePlaylists((s) => s.create);
+  const playlists = usePlaylists((s) => s.playlists);
   const [name, setName] = useState('');
   const inputRef = useRef(null);
 
@@ -28,7 +28,10 @@ export function CreatePlaylistModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   const trimmed = name.trim();
-  const canSubmit = trimmed.length > 0;
+  const isDuplicate =
+    trimmed.length > 0 &&
+    playlists.some((p) => p.name.trim().toLowerCase() === trimmed.toLowerCase());
+  const canSubmit = trimmed.length > 0 && !isDuplicate;
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -50,12 +53,6 @@ export function CreatePlaylistModal({ isOpen, onClose }) {
         </header>
 
         <div className="modal-body">
-          <div className="dropzone" onClick={(e) => e.preventDefault()}>
-            <div className="dropzone-icon" aria-hidden="true">📷</div>
-            <div className="dropzone-title">Agregar portada</div>
-            <div className="dropzone-hint">JPG, PNG O SVG (MAX 50MB)</div>
-          </div>
-
           <div className="form-field">
             <label className="form-label" htmlFor="pl-name">
               Nombre<span className="required" aria-hidden="true">*</span>
@@ -63,14 +60,21 @@ export function CreatePlaylistModal({ isOpen, onClose }) {
             <input
               id="pl-name"
               ref={inputRef}
-              className="form-input"
+              className={`form-input${isDuplicate ? ' has-error' : ''}`}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: Lluvia de medianoche"
               required
               maxLength={80}
+              aria-invalid={isDuplicate}
+              aria-describedby={isDuplicate ? 'pl-name-error' : undefined}
             />
+            {isDuplicate && (
+              <p id="pl-name-error" className="form-error" role="alert">
+                Ya existe una playlist con ese nombre.
+              </p>
+            )}
           </div>
         </div>
 

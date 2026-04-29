@@ -18,20 +18,38 @@
 // flush eventual no compromete al servidor.
 
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader, Lines, Stdin};
 
 use crate::AppState;
+use crate::domain::Song;
+use crate::library_scan::{
+    extract_spotify_id, read_id3_song, save_tracks_map, PendingTrack, TrackEntry, TracksMap,
+};
 use crate::persistence::{self, LibrarySnapshot, PlaylistsSnapshot};
+use crate::protocol::ServerEvent;
 
-pub async fn run(state: Arc<AppState>) -> anyhow::Result<()> {
+pub async fn run(
+    state: Arc<AppState>,
+    pending: Vec<PendingTrack>,
+    tracks_path: PathBuf,
+    mut tracks_map: TracksMap,
+) -> anyhow::Result<()> {
     print_banner();
-    print_help();
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
+
+    // 🔹 Si el scan dejó canciones pendientes, preguntarle al usuario antes
+    //    de mostrar el prompt normal. La elección se persiste en tracks.json
+    //    para que el próximo arranque sea automático.
+    if !pending.is_empty() {
+        setup_pending(&state, pending, &tracks_path, &mut tracks_map, &mut reader).await;
+    }
+
+    print_help();
 
     loop {
         prompt();
@@ -137,6 +155,8 @@ async fn handle_add(state: &Arc<AppState>, args: &[&str]) {
                 let id = state.library.write().await.add_song(song);
                 println!("✓ agregada (id {id}) desde Spotify: {artist} — {title}");
                 println!("    archivo: {path_str}");
+                let _ = state.save_tx.try_send(());
+                broadcast_library(state).await;
             }
             Err(e) => eprintln!("✗ error consultando Spotify: {e}"),
         }
@@ -145,7 +165,11 @@ async fn handle_add(state: &Arc<AppState>, args: &[&str]) {
 
     // Fallback: solo tags ID3.
     match state.library.write().await.add_song_from_file(path) {
-        Ok(id) => println!("✓ agregada (id {id}) desde ID3: {path_str}"),
+        Ok(id) => {
+            println!("✓ agregada (id {id}) desde ID3: {path_str}");
+            let _ = state.save_tx.try_send(());
+            broadcast_library(state).await;
+        }
         Err(e) => eprintln!("✗ error agregando '{path_str}': {e}"),
     }
 }
@@ -166,6 +190,8 @@ async fn handle_add_spotify(state: &Arc<AppState>, args: &[&str]) {
         Ok(song) => {
             let id = state.library.write().await.add_song(song);
             println!("✓ agregada desde Spotify (id {id}): {track_id}");
+            let _ = state.save_tx.try_send(());
+            broadcast_library(state).await;
         }
         Err(e) => eprintln!("✗ error consultando Spotify: {e}"),
     }
@@ -186,9 +212,20 @@ async fn handle_remove(state: &Arc<AppState>, args: &[&str]) {
     // remove_song consulta playback::is_playing y devuelve CANNOT_DELETE_PLAYING
     // si la canción está sonando (requisito explícito del enunciado).
     match state.library.write().await.remove_song(id, &state.playback) {
-        Ok(()) => println!("✓ eliminada (id {id})"),
+        Ok(()) => {
+            println!("✓ eliminada (id {id})");
+            let _ = state.save_tx.try_send(());
+            broadcast_library(state).await;
+        }
         Err(e) => eprintln!("✗ no se pudo eliminar id {id}: {e}"),
     }
+}
+
+/// Reenvía un `LibrarySnapshot` actualizado a todos los clientes WS conectados.
+/// Llamado tras add/remove desde la CLI para que la UI se refresque sin recargar.
+async fn broadcast_library(state: &Arc<AppState>) {
+    let songs = state.library.read().await.list();
+    let _ = state.broadcast.send(ServerEvent::LibrarySnapshot { songs });
 }
 
 async fn handle_list(state: &Arc<AppState>) {
@@ -230,6 +267,172 @@ async fn flush_state(state: &Arc<AppState>) {
     }
     if let Err(e) = persistence::save_playlists(&pl_snap).await {
         eprintln!("✗ error guardando playlists: {e}");
+    }
+}
+
+// ─── setup interactivo de canciones nuevas ──────────────────────────────
+
+/// Procesa los MP3s pendientes del scan inicial preguntándole al usuario
+/// cómo cargarlos. Persiste cada elección en `tracks.json` para que los
+/// próximos arranques sean 100 % automáticos.
+async fn setup_pending(
+    state: &Arc<AppState>,
+    pending: Vec<PendingTrack>,
+    tracks_path: &Path,
+    tracks_map: &mut TracksMap,
+    reader: &mut Lines<BufReader<Stdin>>,
+) {
+    println!(
+        "\n🔍 Encontré {} canción(es) nueva(s) en library/. Te pregunto cómo cargar cada una:\n",
+        pending.len()
+    );
+
+    for track in pending {
+        println!("📀 {}", track.filename);
+        println!("   [s] Pegar enlace de Spotify (recomendado)");
+        println!("   [m] Escribir metadata a mano");
+        println!("   [t] Leer tags ID3 del archivo");
+        println!("   [x] Saltar (te pregunto de nuevo en el próximo arranque)");
+        print!("   > ");
+        let _ = io::stdout().flush();
+
+        let choice = match reader.next_line().await {
+            Ok(Some(line)) => line.trim().to_lowercase(),
+            _ => return,
+        };
+
+        let result = match choice.as_str() {
+            "s" => prompt_spotify(state, &track, reader).await,
+            "m" => prompt_manual(state, &track, reader).await,
+            "t" => add_via_id3(state, &track).await,
+            "x" => {
+                println!("   → saltada\n");
+                Some(TrackEntry::Skip)
+            }
+            _ => {
+                println!("   ✗ opción inválida, salto\n");
+                None
+            }
+        };
+
+        if let Some(entry) = result {
+            tracks_map.insert(track.filename.clone(), entry);
+            if let Err(e) = save_tracks_map(tracks_path, tracks_map) {
+                eprintln!("   ⚠ no se pudo guardar tracks.json: {e}");
+            }
+        }
+    }
+
+    // Notificar a los clientes (si alguno se conectó durante el setup) que la
+    // biblioteca cambió. Disparar también el debouncer de persistencia.
+    let songs = state.library.read().await.list();
+    let _ = state.broadcast.send(ServerEvent::LibrarySnapshot { songs });
+    let _ = state.save_tx.try_send(());
+
+    println!("✓ setup completo. tracks.json actualizado.\n");
+}
+
+async fn prompt_spotify(
+    state: &Arc<AppState>,
+    track: &PendingTrack,
+    reader: &mut Lines<BufReader<Stdin>>,
+) -> Option<TrackEntry> {
+    let Some(spotify) = state.spotify.as_ref() else {
+        eprintln!("   ✗ Spotify no configurado (revisa SPOTIFY_CLIENT_ID/SECRET en server/.env)\n");
+        return None;
+    };
+
+    print!("   Pega la URL o ID de Spotify: ");
+    let _ = io::stdout().flush();
+    let line = match reader.next_line().await {
+        Ok(Some(l)) => l,
+        _ => return None,
+    };
+
+    let id = match extract_spotify_id(&line) {
+        Some(id) => id,
+        None => {
+            eprintln!("   ✗ entrada vacía\n");
+            return None;
+        }
+    };
+
+    match spotify.fetch_track(&id).await {
+        Ok(mut song) => {
+            song.file_path = Some(track.abs_path.to_string_lossy().to_string());
+            let title = song.title.clone();
+            let artist = song.artist.clone();
+            let new_id = state.library.write().await.add_song(song);
+            println!("   ✓ agregada (id {new_id}) {artist} — {title}\n");
+            Some(TrackEntry::Spotify { spotify_id: id })
+        }
+        Err(e) => {
+            eprintln!("   ✗ Spotify rechazó '{id}': {e}\n");
+            None
+        }
+    }
+}
+
+async fn prompt_manual(
+    state: &Arc<AppState>,
+    track: &PendingTrack,
+    reader: &mut Lines<BufReader<Stdin>>,
+) -> Option<TrackEntry> {
+    let title = ask(reader, "   Título: ").await?;
+    let artist = ask(reader, "   Artista: ").await?;
+    let album = ask(reader, "   Álbum: ").await?;
+    let genre = ask(reader, "   Género: ").await?;
+    let year_raw = ask(reader, "   Año (ej. 2024): ").await?;
+    let year: u16 = year_raw.parse().unwrap_or(0);
+
+    let song = Song {
+        id: 0,
+        title: title.clone(),
+        artist: artist.clone(),
+        album: album.clone(),
+        genre: genre.clone(),
+        year,
+        duration_secs: 0,
+        file_path: Some(track.abs_path.to_string_lossy().to_string()),
+        spotify_preview_url: None,
+        cover_url: None,
+    };
+
+    let new_id = state.library.write().await.add_song(song);
+    println!("   ✓ agregada (id {new_id}) {artist} — {title}\n");
+
+    Some(TrackEntry::Manual {
+        title,
+        artist,
+        album,
+        genre,
+        year,
+        duration_secs: 0,
+    })
+}
+
+async fn add_via_id3(state: &Arc<AppState>, track: &PendingTrack) -> Option<TrackEntry> {
+    match read_id3_song(&track.abs_path) {
+        Ok(song) => {
+            let title = song.title.clone();
+            let artist = song.artist.clone();
+            let new_id = state.library.write().await.add_song(song);
+            println!("   ✓ agregada (id {new_id}) {artist} — {title} [via ID3]\n");
+            Some(TrackEntry::Id3)
+        }
+        Err(e) => {
+            eprintln!("   ✗ no se pudieron leer tags ID3: {e}\n");
+            None
+        }
+    }
+}
+
+async fn ask(reader: &mut Lines<BufReader<Stdin>>, prompt: &str) -> Option<String> {
+    print!("{prompt}");
+    let _ = io::stdout().flush();
+    match reader.next_line().await {
+        Ok(Some(line)) => Some(line.trim().to_string()),
+        _ => None,
     }
 }
 

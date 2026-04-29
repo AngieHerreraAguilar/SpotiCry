@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{RwLock, broadcast, mpsc};
 
 use crate::{
     library::Library,
@@ -47,6 +47,12 @@ pub struct AppState {
     /// Cliente Spotify. `None` si SPOTIFY_CLIENT_ID/SECRET no estaban presentes
     /// al arrancar — el resto del server arranca igual; solo `add-spotify` falla.
     pub spotify: Option<Arc<SpotifyClient>>,
+
+    /// Notifica al debouncer de persistencia que hay una mutación pendiente
+    /// de volcar a disco. `try_send` no-bloqueante: si el canal está lleno,
+    /// el siguiente flush ya cubre la mutación porque el debouncer relee el
+    /// estado completo, no un diff.
+    pub save_tx: mpsc::Sender<()>,
 }
 
 impl AppState {
@@ -56,6 +62,7 @@ impl AppState {
         playback: Playback,
         broadcast: broadcast::Sender<ServerEvent>,
         spotify: Option<Arc<SpotifyClient>>,
+        save_tx: mpsc::Sender<()>,
     ) -> Self {
         Self {
             library: Arc::new(RwLock::new(library)),
@@ -63,6 +70,7 @@ impl AppState {
             playback: Arc::new(playback),
             broadcast,
             spotify,
+            save_tx,
         }
     }
 }

@@ -7,7 +7,7 @@ import { usePlayer } from '../store/player';
 export function Player() {
   const audioRef = useRef(null);
   const setAudioEl = usePlayer((s) => s.setAudioEl);
-  const { currentSong, isPlaying, currentTime, duration, togglePause, seekTo, _tick, _setPlaying } = usePlayer();
+  const { currentSong, isPlaying, currentTime, duration, togglePause, seekTo, _tick, _setPlaying, _endedNaturally } = usePlayer();
 
   useEffect(() => {
     setAudioEl(audioRef.current);
@@ -20,6 +20,7 @@ export function Player() {
         onTimeUpdate={(e) => _tick(e.target.currentTime, e.target.duration || 0)}
         onPlay={() => _setPlaying(true)}
         onPause={() => _setPlaying(false)}
+        onEnded={_endedNaturally}
       />
       <div className="player-info">
         {currentSong ? (

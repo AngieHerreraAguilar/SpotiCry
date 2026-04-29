@@ -102,9 +102,21 @@ export function PlaylistView() {
     <section className="playlist-view">
       <header className="playlist-hero">
         <div className="playlist-cover-mosaic" aria-hidden="true">
-          {mosaicSlots.map((s, i) => (
-            <div key={i}>{s ? initials(s.title) : ''}</div>
-          ))}
+          {mosaicSlots.map((s, i) => {
+            if (!s) return <div key={i} className="mosaic-cell empty" />;
+            if (s.cover_url) {
+              return (
+                <div key={i} className="mosaic-cell">
+                  <img src={s.cover_url} alt="" loading="lazy" />
+                </div>
+              );
+            }
+            return (
+              <div key={i} className="mosaic-cell mosaic-cell-fallback">
+                {initials(s.title)}
+              </div>
+            );
+          })}
         </div>
         <div className="playlist-meta">
           <span className="playlist-kicker">Public Playlist</span>
