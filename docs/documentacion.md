@@ -1,9 +1,13 @@
 # SpotiCry — Documentación del Proyecto
 
 **Instituto Tecnológico de Costa Rica · Campus Tecnológico Local San Carlos**
+
 **Escuela de Ingeniería en Computación · Lenguajes de Programación**
+
 **Profesor:** Oscar Víquez
+
 **Integrantes:** Angie Herrera Aguilar (2020035640) · Kevin Rivera Gonzalez (2024157337)
+
 **Semestre I · Año 2026**
 
 ---
