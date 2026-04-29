@@ -1,9 +1,13 @@
 # SpotiCry — Project Documentation
 
 **Costa Rica Institute of Technology · San Carlos Local Campus**
+
 **School of Computer Engineering · Programming Languages**
+
 **Professor:** Oscar Víquez
+
 **Team:** Angie Herrera Aguilar (2020035640) · Kevin Rivera Gonzalez (2024157337)
+
 **Semester I · Year 2026**
 
 > Spanish version: [`documentacion.md`](documentacion.md). Both files are kept in sync; if you find a discrepancy, the Spanish version is authoritative.
