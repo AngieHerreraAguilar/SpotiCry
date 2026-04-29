@@ -10,6 +10,11 @@ pub struct Library {
 }
 
 impl Library {
+    /// Constructor para tests. En producción siempre se entra por
+    /// `from_snapshot`: `main.rs` llama a `persistence::load_library` que
+    /// devuelve un snapshot (vacío si no existe library.json) y de ahí se
+    /// reconstruye el índice secundario.
+    #[cfg(test)]
     pub fn new(next_id: u64) -> Self {
         Self {
             songs: HashMap::new(),
@@ -86,7 +91,7 @@ impl Library {
         duration_secs: 0,
         file_path: Some(path.to_string_lossy().to_string()),
         spotify_preview_url: None,
-        cover_url: None, // ⚠️ solo si existe en Song
+        cover_url: None,
     };
 
     Ok(self.add_song(song))

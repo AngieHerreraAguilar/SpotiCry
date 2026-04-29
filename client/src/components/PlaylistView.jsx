@@ -1,9 +1,10 @@
-// Vista de una playlist con hero + action bar + filtro + lista. Owner: Persona 2.
-// Diseño: Figma "Playlist Detail" Desktop (1:1214) / Mobile (1:1837).
-// El filtro envía la op `playlist.filter` (requisito del proyecto: validar el
-// módulo funcional puro de Kevin con closures + map/filter/fold). Mientras se
-// define el shape de la respuesta, también filtra localmente para que el UX
-// sea inmediato.
+// Vista de una playlist con hero + action bar + filtro + lista.
+//
+// El filtro corre en dos lugares a propósito:
+//   1. Local (`displayedItems`) — feedback inmediato al teclear, sin round-trip.
+//   2. Remoto (`sendCmd('playlist.filter', …)`) — invoca el módulo funcional
+//      puro del backend (closures + map/filter/fold), que es el requisito
+//      explícito del enunciado.
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { sendCmd } from '../api/ws';

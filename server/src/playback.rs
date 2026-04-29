@@ -1,7 +1,6 @@
 use crate::domain::SongId;
 use std::collections::HashSet;
 use std::sync::Mutex;
-use once_cell::sync::Lazy;
 
 pub struct Playback {
     playing: Mutex<HashSet<SongId>>,
@@ -28,16 +27,4 @@ impl Playback {
         let set = self.playing.lock().unwrap();
         set.contains(id)
     }
-
-    pub fn snapshot(&self) -> Vec<SongId> {
-        let set = self.playing.lock().unwrap();
-        set.iter().cloned().collect()
-    }
-}
-
-// ✔ MVP global state (aceptado en Día 1)
-static PLAYBACK: Lazy<Playback> = Lazy::new(Playback::new);
-
-pub fn global() -> &'static Playback {
-    &PLAYBACK
 }

@@ -20,7 +20,6 @@ function connect() {
   });
 
   socket.addEventListener('message', (e) => {
-    // TODO(Persona 2): parse JSON, dispatch to listeners[msg.ev]
     try {
       const msg = JSON.parse(e.data);
       const handlers = listeners.get(msg.ev);

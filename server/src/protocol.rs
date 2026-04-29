@@ -79,6 +79,13 @@ pub enum ServerEvent {
     Error { code: ErrorCode, msg: String },
 }
 
+// Parte del contrato público del protocolo (ver docs/documentacion.md §6.3).
+// `CannotDeletePlaying` e `Internal` están reservadas: la primera porque hoy
+// el `remove` solo se hace desde la CLI (que imprime a stderr y no emite por
+// WS), pero el contrato la promete; la segunda como bucket genérico para
+// errores internos. `#[allow(dead_code)]` se mantiene mientras no haya un
+// emisor real, sin romper el contrato documentado.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorCode {

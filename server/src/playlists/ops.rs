@@ -130,6 +130,13 @@ pub fn sort_by<K: Ord, F: Fn(&Song) -> K>(
     songs.into_iter().collect()
 }
 
+/// Suma las duraciones de las canciones de la playlist.
+///
+/// Hoy el frontend computa este total localmente en JS. Se mantiene en Rust
+/// porque es el ejemplo canónico de `fold` sobre una estructura inmutable
+/// (`im::Vector`) — uno de los combinadores funcionales que el enunciado pide
+/// demostrar en el módulo de playlists.
+#[allow(dead_code)]
 pub fn total_duration(p: &Playlist, library: &[Song]) -> u32 {
     p.songs
         .iter()

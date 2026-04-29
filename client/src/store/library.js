@@ -1,4 +1,9 @@
-// Store Zustand: biblioteca de canciones. Owner: Persona 2.
+// Store Zustand: biblioteca de canciones.
+//
+// El servidor empuja `library.snapshot` automáticamente al conectar y tras
+// cada add/remove (CLI o WS), así que `songs` siempre refleja el estado
+// global. `searchResults` se llena solo cuando el usuario lanza una búsqueda
+// y se limpia con `clearSearch` para volver a mostrar la biblioteca completa.
 import { create } from 'zustand';
 import { subscribe } from '../api/ws';
 
@@ -11,6 +16,5 @@ export const useLibrary = create((set) => ({
   clearSearch: () => set({ searchResults: null }),
 }));
 
-// TODO(Persona 2): suscribirse a eventos 'library.snapshot' y 'search.result'
 subscribe('library.snapshot', (msg) => useLibrary.getState().setSongs(msg.songs));
 subscribe('search.result', (msg) => useLibrary.getState().setSearchResults(msg.songs));

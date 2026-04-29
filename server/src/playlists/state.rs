@@ -10,13 +10,6 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> Self {
-        Self {
-            playlists: im::HashMap::new(),
-            next_id: 1,
-        }
-    }
-
     pub fn to_snapshot(&self) -> (Vec<Playlist>, PlaylistId) {
         (self.playlists.values().cloned().collect(), self.next_id)
     }

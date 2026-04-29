@@ -365,7 +365,5 @@ async fn handle_client_msg(
                 let _ = state.save_tx.try_send(());
             }
         }
-
-        _ => {}
     }
 }
