@@ -19,6 +19,80 @@ Proyecto académico — Lenguajes de Programación, Instituto Tecnológico de Co
 
 ---
 
+## 👨‍🏫 Para el profesor / revisor
+
+Pasos exactos para clonar y ver la demo funcionando. **No necesitas configurar Spotify ni conseguir música**: el repo trae cargadas 5 canciones de prueba.
+
+### 1. Requisitos en tu máquina
+
+- **Rust + Cargo** ≥ 1.75 ([rustup.rs](https://rustup.rs))
+- **Node.js** ≥ 20 + **npm** ≥ 10 ([nodejs.org](https://nodejs.org))
+
+### 2. Clonar e instalar
+
+```bash
+git clone git@github.com:AngieHerreraAguilar/SpotiCry.git
+cd SpotiCry
+
+# Backend
+cd server
+cargo build          # primera compilación, ~1–2 min
+
+# Frontend (en otra terminal)
+cd client
+npm install          # ~30 s
+```
+
+### 3. Primer arranque del server (paso especial — leer)
+
+La biblioteca cargada en `server/library.json` apunta a las rutas absolutas de la máquina donde se generó. En **tu** máquina esos paths no existen, así que el server las limpia silenciosamente la primera vez. Después el auto-scan re-detecta los MP3s con tus paths locales y te pregunta cómo cargarlos.
+
+```bash
+cd server
+cargo run
+```
+
+Lo que vas a ver:
+
+1. Un mensaje tipo `✓ limpiadas 5 canción(es) con file_path inexistente` (es esperado).
+2. Después: `🔍 Encontré 5 canción(es) nueva(s) en library/`.
+3. **Como ya existe `library/tracks.json`** con las elecciones guardadas, en condiciones normales el scan carga las 5 canciones automáticamente sin preguntar — verás `✓ scan: cargada (id N) Artista — Título` cinco veces.
+4. Si por alguna razón te pregunta, contesta `t` (tags ID3) para cada una. El audio se reproduce igual.
+5. Cuando aparezca `🚀 Server running on http://localhost:8080`, el server está listo.
+
+### 4. Levantar el frontend
+
+En otra terminal:
+
+```bash
+cd client
+npm run dev
+```
+
+Abre [http://localhost:5173](http://localhost:5173) y ya deberías ver las 5 canciones.
+
+### 5. Qué probar
+
+| Funcionalidad | Cómo |
+|---|---|
+| Reproducir + seek libre | Doble click en una canción · arrastra la barra de progreso |
+| Saltar ±10 s | Botones `« 10s` / `10s »` del reproductor |
+| 3 búsquedas distintas | Sidebar → `Buscar` → tabs Título / Género / Año |
+| Crear playlist | Sidebar → `+ Nueva playlist` |
+| Agregar canción a playlist | Botón `+` en cada fila de la biblioteca |
+| Concurrencia (broadcast) | Abre **2 ventanas** en localhost:5173 — crea/edita en una, ves el cambio en la otra |
+| "No borrar canción reproduciéndose" | Reproduce una → en la terminal del server: `remove <id>` → debe rechazar con `CANNOT_DELETE_PLAYING` |
+| Tests del backend | `cd server && cargo test` (5 tests verdes en < 1 s) |
+
+### 6. Documentación técnica
+
+- 📄 [`docs/documentacion.md`](docs/documentacion.md) — versión completa en español
+- 📄 [`docs/documentation.en.md`](docs/documentation.en.md) — English version
+
+Cubren: problema, funcionalidades, análisis técnico, protocolo, concurrencia con vs sin sincronización, métricas y conclusiones.
+
+---
+
 ## Requisitos
 
 | Herramienta | Versión mínima |
