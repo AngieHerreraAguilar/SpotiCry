@@ -471,9 +471,50 @@ All MVP items from the assignment are operational at project close. Rust backend
 
 Special case: if the song was added with `add-spotify` and there is no local file, `file_path` is `None` and the endpoint proxies to `spotify_preview_url` (30 s preview). In practice this fallback only works for tracks where Spotify still exposes `preview_url` — since 2024 most return `null` due to Client Credentials Flow policy changes.
 
-### 8.4 Screenshots
+```spoticry/
+ ├── docs/
+ │    ├── documentacion.md
+ │    └── images/
+ │         ├── devtools-network-concurrency.png
+ │         ├── home.png
+ │         ├── search-1.png
+ │         ├── search-2.png
+ │         ├── playlist-detail.png
+ │         ├── player.png
+ │         ├── mobile-768.png
+ │         ├── cargo-test.png
+ │         └── remove-while-playing.png
+```
 
-*[Insert DevTools and app screenshots: home, search per criterion, playlist detail, player with seek bar, mobile view at 768 px, terminal showing `cargo test` green + `remove` attempt while playing.]*
+### 8.4 Screenshots
+  This section presents screenshots of the system in operation, including the user interface, concurrency tests, and development tools used to validate the application’s behavior.
+
+**8.4.1 DevTools – Concurrent Requests**
+
+The Google Chrome Developer Tools (DevTools) were used, specifically the Network tab, to observe multiple HTTP requests being executed in parallel during concurrency testing.
+
+**8.4.2 Home View**
+
+Main screen of the application where users can access the system’s general features.
+
+**8.4.3 Song Search**
+
+Searches were performed using different criteria to validate correct filtering of results.
+
+**8.4.4 Playlist Detail**
+
+View of a playlist showing its songs organized in order.
+
+**8.4.5 Responsive View**
+
+Validation of the responsive design on mobile or reduced screen sizes.
+
+**8.4.6 Terminal and System Tests**
+
+Evidence of automated test execution (cargo test) and validation of system behavior under specific conditions.
+
+Successful tests
+Attempt to remove a song while it is playing
 
 ---
 
