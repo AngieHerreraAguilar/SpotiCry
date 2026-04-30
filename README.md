@@ -21,19 +21,32 @@ Proyecto académico — Lenguajes de Programación, Instituto Tecnológico de Co
 
 ## 👨‍🏫 Para el profesor / revisor
 
-Pasos exactos para clonar y ver la demo funcionando. **No necesitas configurar Spotify ni conseguir música**: el repo trae cargadas 5 canciones de prueba.
+Pasos exactos para clonar y ver la demo funcionando. **No necesitas conseguir música ni buscar IDs de Spotify** — el repo trae cargadas 5 canciones con sus IDs de Spotify ya guardados en [`library/tracks.json`](library/tracks.json). Lo único que tenés que hacer es pegar las credenciales de Spotify que te compartí por privado.
 
 ### 1. Requisitos en tu máquina
 
 - **Rust + Cargo** ≥ 1.75 ([rustup.rs](https://rustup.rs))
 - **Node.js** ≥ 20 + **npm** ≥ 10 ([nodejs.org](https://nodejs.org))
 
-### 2. Clonar e instalar
+### 2. Clonar y configurar credenciales
 
 ```bash
 git clone git@github.com:AngieHerreraAguilar/SpotiCry.git
 cd SpotiCry
+```
 
+Crea `server/.env` (en la carpeta `server/`, no en la raíz) y pega las dos variables que te compartí por privado:
+
+```env
+SPOTIFY_CLIENT_ID=…
+SPOTIFY_CLIENT_SECRET=…
+```
+
+> ⚠ **Si estás en Windows** y abres el archivo con Notepad, asegúrate de guardarlo con line endings **LF** y no **CRLF** — un `\r` invisible al final del valor rompe la autenticación con Spotify. La forma fácil: abrir con VS Code, mirar la esquina inferior derecha, click en `CRLF` → `LF`, guardar.
+
+### 3. Instalar dependencias
+
+```bash
 # Backend
 cd server
 cargo build          # primera compilación, ~1–2 min
@@ -43,9 +56,9 @@ cd client
 npm install          # ~30 s
 ```
 
-### 3. Primer arranque del server (paso especial — leer)
+### 4. Primer arranque del server (paso especial — leer)
 
-La biblioteca cargada en `server/library.json` apunta a las rutas absolutas de la máquina donde se generó. En **tu** máquina esos paths no existen, así que el server las limpia silenciosamente la primera vez. Después el auto-scan re-detecta los MP3s con tus paths locales y te pregunta cómo cargarlos.
+La biblioteca cargada en `server/library.json` apunta a las rutas absolutas de la máquina donde se generó. En **tu** máquina esos paths no existen, así que el server las limpia silenciosamente la primera vez. Después el auto-scan vuelve a cargar las 5 canciones usando los IDs de Spotify del manifest, esta vez con tus paths locales.
 
 ```bash
 cd server
@@ -54,13 +67,12 @@ cargo run
 
 Lo que vas a ver:
 
-1. Un mensaje tipo `✓ limpiadas 5 canción(es) con file_path inexistente` (es esperado).
-2. Después: `🔍 Encontré 5 canción(es) nueva(s) en library/`.
-3. **Como ya existe `library/tracks.json`** con las elecciones guardadas, en condiciones normales el scan carga las 5 canciones automáticamente sin preguntar — verás `✓ scan: cargada (id N) Artista — Título` cinco veces.
-4. Si por alguna razón te pregunta, contesta `t` (tags ID3) para cada una. El audio se reproduce igual.
-5. Cuando aparezca `🚀 Server running on http://localhost:8080`, el server está listo.
+1. `✓ Spotify conectado (Client Credentials)` — confirma que tu `.env` se cargó bien. Si dice `Spotify deshabilitado`, revisa el archivo (line endings, espacios extra, archivo en la carpeta correcta).
+2. `✓ limpiadas 5 canción(es) con file_path inexistente` — esperado, son los paths viejos.
+3. `🔍 Encontré 5 canción(es) nueva(s) en library/` seguido de 5 líneas `✓ scan: cargada (id N) Artista — Título` — el manifest tiene las elecciones guardadas, así que carga automático sin preguntarte nada.
+4. `🚀 Server running on http://localhost:8080` — listo.
 
-### 4. Levantar el frontend
+### 5. Levantar el frontend
 
 En otra terminal:
 
@@ -69,9 +81,9 @@ cd client
 npm run dev
 ```
 
-Abre [http://localhost:5173](http://localhost:5173) y ya deberías ver las 5 canciones.
+Abre [http://localhost:5173](http://localhost:5173) y ya deberías ver las 5 canciones con sus portadas oficiales.
 
-### 5. Qué probar
+### 6. Qué probar
 
 | Funcionalidad | Cómo |
 |---|---|
@@ -84,7 +96,7 @@ Abre [http://localhost:5173](http://localhost:5173) y ya deberías ver las 5 can
 | "No borrar canción reproduciéndose" | Reproduce una → en la terminal del server: `remove <id>` → debe rechazar con `CANNOT_DELETE_PLAYING` |
 | Tests del backend | `cd server && cargo test` (5 tests verdes en < 1 s) |
 
-### 6. Documentación técnica
+### 7. Documentación técnica
 
 - 📄 [`docs/documentacion.md`](docs/documentacion.md) — versión completa en español
 - 📄 [`docs/documentation.en.md`](docs/documentation.en.md) — English version
