@@ -1,0 +1,65 @@
+{
+  "songs": [
+    {
+      "id": 4,
+      "title": "Those Eyes",
+      "artist": "New West",
+      "album": "Those Eyes",
+      "genre": "spotify",
+      "year": 2019,
+      "duration_secs": 220,
+      "file_path": "/Users/AngieHerrera/Documents/SpotiCry/library/ThoseEyes.m4a.mp3",
+      "spotify_preview_url": null,
+      "cover_url": "https://i.scdn.co/image/ab67616d0000b2731bb5dc21200bfc56d8f7ef41"
+    },
+    {
+      "id": 5,
+      "title": "Turning Page",
+      "artist": "Sleeping At Last",
+      "album": "Turning Page",
+      "genre": "spotify",
+      "year": 2012,
+      "duration_secs": 255,
+      "file_path": "/Users/AngieHerrera/Documents/SpotiCry/library/TurningPage.m4a.mp3",
+      "spotify_preview_url": null,
+      "cover_url": "https://i.scdn.co/image/ab67616d0000b27330eb992a82f895893f60375b"
+    },
+    {
+      "id": 2,
+      "title": "WILDFLOWER",
+      "artist": "Billie Eilish",
+      "album": "HIT ME HARD AND SOFT",
+      "genre": "spotify",
+      "year": 2024,
+      "duration_secs": 261,
+      "file_path": "/Users/AngieHerrera/Documents/SpotiCry/library/Billie-eilish-WILDFLOWER.mp3",
+      "spotify_preview_url": null,
+      "cover_url": "https://i.scdn.co/image/ab67616d0000b27371d62ea7ea8a5be92d3c1f62"
+    },
+    {
+      "id": 1,
+      "title": "Not My Responsibility",
+      "artist": "Billie Eilish",
+      "album": "Happier Than Ever",
+      "genre": "spotify",
+      "year": 2021,
+      "duration_secs": 227,
+      "file_path": "/Users/AngieHerrera/Documents/SpotiCry/library/Billie-eilish-Not-My-Responsibility.mp3",
+      "spotify_preview_url": null,
+      "cover_url": "https://i.scdn.co/image/ab67616d0000b2732a038d3bf875d23e4aeaa84e"
+    },
+    {
+      "id": 3,
+      "title": "everything i wanted",
+      "artist": "Billie Eilish",
+      "album": "everything i wanted",
+      "genre": "spotify",
+      "year": 2019,
+      "duration_secs": 245,
+      "file_path": "/Users/AngieHerrera/Documents/SpotiCry/library/EverythingIWanted.m4a.mp3",
+      "spotify_preview_url": null,
+      "cover_url": "https://i.scdn.co/image/ab67616d0000b273f2248cf6dad1d6c062587249"
+    }
+  ],
+  "next_id": 6
+}

@@ -1,7 +1,6 @@
 # Rust
 server/target/
 **/*.rs.bk
-Cargo.lock
 
 # Node / Vite
 client/node_modules/
@@ -11,21 +10,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment
+# Environment — credenciales, NUNCA al repo
 .env
 .env.local
 .env.*.local
-
-# Audio library (archivos MP3 locales — NO se commitean)
-library/*.mp3
-library/*.wav
-library/*.ogg
-library/*.flac
-!library/.gitkeep
-
-# Servidor: datos persistentes generados en runtime
-server/library.json
-server/playlists.json
 
 # macOS
 .DS_Store
