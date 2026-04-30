@@ -469,9 +469,43 @@ Todos los items del MVP del enunciado quedaron operativos al cierre del proyecto
 
 Caso especial: si la canción se agregó con `add-spotify` y no hay archivo local, `file_path` queda en `None` y el endpoint hace de proxy hacia `spotify_preview_url` (preview de 30 s). En la práctica este fallback solo funciona para los tracks donde Spotify aún expone `preview_url` — desde 2024 la mayoría devuelve `null` por cambios en la política de Client Credentials Flow.
 
-### 8.4 Capturas de pantalla
+```spoticry/
+ ├── docs/
+ │    ├── documentacion.md
+ │    └── images/
+ │         ├── devtools-network-concurrency.png
+ │         ├── home.png
+ │         ├── search-1.png
+ │         ├── search-2.png
+ │         ├── playlist-detail.png
+ │         ├── player.png
+ │         ├── mobile-768.png
+ │         ├── cargo-test.png
+ │         └── remove-while-playing.png
+```
 
-*[Insertar las capturas de DevTools y de la app: home, search por cada criterio, playlist detail, reproductor con barra de seek, vista mobile a 768 px, terminal mostrando `cargo test` verde + intento de `remove` mientras suena.]*
+### 8.4 Capturas de pantalla
+  En esta sección se presentan las capturas del sistema en funcionamiento, incluyendo la interfaz de usuario, pruebas de concurrencia y herramientas de desarrollo utilizadas para validar el comportamiento de la aplicación.
+
+**8.4.1 DevTools – Requests concurrentes**
+  Se utilizó la herramienta de desarrollo del navegador Google Chrome (DevTools), específicamente la pestaña Network, para observar múltiples peticiones HTTP ejecutándose en paralelo durante pruebas de concurrencia.
+
+**8.4.2 Vista Home**
+  Pantalla principal de la aplicación donde se accede a las funcionalidades generales del sistema
+
+**8.4.3 Búsqueda de canciones**
+  Se realizaron búsquedas utilizando distintos criterios para validar el correcto filtrado de resultados.
+
+**8.4.4 Detalle de playlist**
+  Vista del contenido de una playlist con sus canciones organizadas.
+
+**8.4.6 Vista responsive**
+  Validación del diseño adaptable en pantallas móviles o reducidas
+
+**8.4.7 Terminal y pruebas del sistema**
+  Evidencia de ejecución de pruebas automáticas (cargo test) y validación de comportamiento del sistema bajo condiciones específicas.
+  Tests exitosos
+  Intento de eliminación durante reproducción
 
 ---
 
